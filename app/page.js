@@ -1,4 +1,5 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -56,10 +57,10 @@ export default function Home() {
                       padding: '12px',
                       borderRadius: '6px',
                       border: 'none',
-                      fontWeight: 'bold',
-                      cursor: ocupado ? 'not-allowed' : 'pointer',
                       backgroundColor: ocupado ? '#ef4444' : '#22c55e',
                       color: 'white',
+                      fontWeight: 'bold',
+                      cursor: ocupado ? 'not-allowed' : 'pointer'
                     }}
                   >
                     {hora} hs - {ocupado ? 'Ocupado' : 'Disponible'}
