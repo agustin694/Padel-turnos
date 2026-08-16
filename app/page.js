@@ -8,7 +8,16 @@ export default function Home() {
   const [reservas, setReservas] = useState([])
   const [cargando, setCargando] = useState(true)
 
-  // Datos para la reserva del cliente
+  // Control de vista Admin
+  const [esAdmin, setEsAdmin] = useState(false)
+  const [claveAdmin, setClaveAdmin] = useState('')
+
+  // Selección de fecha por parte del cliente
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(
+    new Date().toLocaleDateString('sv-SE')
+  )
+
+  // Datos para reserva del cliente
   const [modalAbierto, setModalAbierto] = useState(false)
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null)
   const [nombreCliente, setNombreCliente] = useState('')
@@ -16,20 +25,26 @@ export default function Home() {
 
   // Datos Admin
   const [canchaId, setCanchaId] = useState('')
-  const [fecha, setFecha] = useState('')
-  const [hora, setHora] = useState('')
+  const [fechaAdmin, setFechaAdmin] = useState('')
+  const [horaAdmin, setHoraAdmin] = useState('')
   const [guardando, setGuardando] = useState(false)
 
-  // MI ALIAS DE MERCADO PAGO
-  const MI_ALIAS = 'TU.ALIAS.AQUI' // 👈 CAMBIÁ ESTO POR TU ALIAS REAL
-  const PRECIO_TURNO = '10000'     // 👈 MONTO A COBRAR (EJ: 10000)
+  // CONFIGURACIÓN
+  const CLAVE_ACCESO = 'admin123' // 👈 CAMBIÁ ESTA CONTRASEÑA POR LA QUE QUIERAS
+  const MI_ALIAS = 'TU.ALIAS.AQUI' // 👈 TU ALIAS DE MERCADO PAGO
+  const PRECIO_TURNO = '10000'
 
-  const hoy = new Date().toLocaleDateString('sv-SE')
-  const horarios = [
-    '07:00', '08:30', '10:00', '11:30', 
-    '13:00', '14:30', '16:00', '17:30', 
-    '19:00', '20:30', '22:00', '23:30', '01:00'
-  ]
+  const generarHorarios = () => {
+    const lista = []
+    for (let h = 7; h < 24; h++) {
+      const horaStr = h.toString().padStart(2, '0')
+      lista.push(`${horaStr}:00`, `${horaStr}:30`)
+    }
+    lista.push('00:00', '00:30', '01:00', '01:30', '02:00')
+    return lista
+  }
+
+  const horarios = generarHorarios()
 
   useEffect(() => {
     cargarDatos()
@@ -44,13 +59,20 @@ export default function Home() {
     setCargando(false)
   }
 
-  // ABRIR FORMULARIO DE RESERVA AL TOCAR TURNO DISPONIBLE
+  function loginAdmin(e) {
+    e.preventDefault()
+    if (claveAdmin === CLAVE_ACCESO) {
+      setEsAdmin(true)
+    } else {
+      alert('Contraseña incorrecta')
+    }
+  }
+
   function seleccionarHorario(cancha, h) {
     setTurnoSeleccionado({ cancha, hora: h })
     setModalAbierto(true)
   }
 
-  // PROCESAR RESERVA Y IR A MERCADO PAGO
   async function confirmarReservaCliente(e) {
     e.preventDefault()
     if (!nombreCliente || !telefonoCliente) return alert('Por favor completá tus datos.')
@@ -58,69 +80,82 @@ export default function Home() {
     const { error } = await supabase.from('reservas').insert([
       { 
         cancha_id: turnoSeleccionado.cancha.id, 
-        fecha: hoy, 
+        fecha: fechaSeleccionada, 
         hora_inicio: turnoSeleccionado.hora, 
         estado: 'pendiente_pago',
         cliente_nombre: nombreCliente,
-        cliente_telefono: telefonoCliente
+        cliente_telefono: telefonoCliente,
+        pago_confirmado: false
       }
     ])
 
     if (error) {
       alert('Error al procesar la reserva: ' + error.message)
     } else {
-      alert('¡Turno pre-reservado! Serás redirigido a Mercado Pago para abonar.')
-      
-      // Abrir enlace directo a Mercado Pago
+      alert('¡Turno reservado! Serás redirigido a Mercado Pago para abonar.')
       const urlMercadoPago = `https://link.mercadopago.com.ar/transfer?alias=${MI_ALIAS}&amount=${PRECIO_TURNO}`
       window.location.href = urlMercadoPago
     }
   }
 
-  // ACCIÓN ADMIN: BLOQUEAR TURNO
-  async function BloquearTurno(e) {
+  async function BloquearTurnoAdmin(e) {
     e.preventDefault()
-    if (!canchaId || !fecha || !hora) return alert('Completá todos los campos')
+    if (!canchaId || !fechaAdmin || !horaAdmin) return alert('Completá todos los campos')
     setGuardando(true)
 
     const { error } = await supabase.from('reservas').insert([
-      { cancha_id: canchaId, fecha, hora_inicio: hora, estado: 'bloqueado' }
+      { cancha_id: canchaId, fecha: fechaAdmin, hora_inicio: horaAdmin, estado: 'bloqueado', pago_confirmado: true }
     ])
 
     setGuardando(false)
     if (error) {
       alert('Error al reservar: ' + error.message)
     } else {
-      alert('¡Turno reservado/bloqueado con éxito!')
+      alert('¡Turno bloqueado por el Administrador!')
       cargarDatos()
     }
   }
 
+  async function cambiarEstadoPago(id, estadoActual) {
+    await supabase.from('reservas').update({ pago_confirmado: !estadoActual }).eq('id', id)
+    cargarDatos()
+  }
+
   async function cancelarReserva(id) {
-    if (!confirm('¿Seguro que querés liberar este turno?')) return
+    if (!confirm('¿Seguro que querés eliminar este turno permanentemente?')) return
     await supabase.from('reservas').delete().eq('id', id)
     cargarDatos()
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '20px', maxWidth: '700px', margin: '0 auto', fontFamily: 'sans-serif' }}>
       
       {/* VISTA CLIENTES */}
       <section style={{ textAlign: 'center', marginBottom: '40px' }}>
         <h1>🎾 Reserva de Canchas</h1>
-        <p style={{ color: '#666' }}>Disponibilidad para hoy ({hoy})</p>
+        
+        <div style={{ margin: '20px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+          <label style={{ fontWeight: 'bold' }}>Seleccionar Día:</label>
+          <input 
+            type="date" 
+            value={fechaSeleccionada} 
+            onChange={(e) => setFechaSeleccionada(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '16px' }}
+          />
+        </div>
 
         {cargando ? (
           <p>Cargando turnos...</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', marginTop: '20px' }}>
             {canchas.map((cancha) => (
               <div key={cancha.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                 <h2 style={{ margin: '0 0 15px 0' }}>{cancha.nombre}</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px' }}>
                   {horarios.map((h) => {
                     const ocupado = reservas.some(
-                      (r) => r.cancha_id === cancha.id && r.fecha === hoy && r.hora_inicio.startsWith(h)
+                      (r) => r.cancha_id === cancha.id && r.fecha === fechaSeleccionada && r.hora_inicio.startsWith(h)
                     )
                     return (
                       <button
@@ -128,17 +163,20 @@ export default function Home() {
                         disabled={ocupado}
                         onClick={() => seleccionarHorario(cancha, h)}
                         style={{
-                          padding: '12px 8px',
-                          borderRadius: '8px',
-                          background: ocupado ? '#fee2e2' : '#dcfce7',
-                          color: ocupado ? '#991b1b' : '#166534',
+                          padding: '10px 4px',
+                          borderRadius: '6px',
+                          background: ocupado ? '#ef4444' : '#dcfce7',
+                          color: ocupado ? '#ffffff' : '#166534',
                           fontWeight: 'bold',
-                          border: ocupado ? '1px solid #f87171' : '1px solid #86efac',
-                          cursor: ocupado ? 'not-allowed' : 'pointer'
+                          border: ocupado ? '1px solid #dc2626' : '1px solid #86efac',
+                          cursor: ocupado ? 'not-allowed' : 'pointer',
+                          fontSize: '13px'
                         }}
                       >
                         {h} <br />
-                        <small style={{ fontSize: '11px', fontWeight: 'normal' }}>{ocupado ? 'Ocupado' : 'Reservar'}</small>
+                        <small style={{ fontSize: '10px', fontWeight: 'normal' }}>
+                          {ocupado ? 'Ocupado' : 'Reservar'}
+                        </small>
                       </button>
                     )
                   })}
@@ -149,13 +187,14 @@ export default function Home() {
         )}
       </section>
 
-      {/* MODAL FORMULARIO CLIENTE */}
+      {/* MODAL RESERVA CLIENTE */}
       {modalAbierto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 100 }}>
           <div style={{ background: '#fff', padding: '25px', borderRadius: '12px', maxWidth: '400px', width: '100%' }}>
             <h3>Confirmar Reserva</h3>
             <p style={{ fontSize: '14px', color: '#666' }}>
               Cancha: <strong>{turnoSeleccionado?.cancha.nombre}</strong> <br />
+              Día: <strong>{fechaSeleccionada}</strong> <br />
               Hora: <strong>{turnoSeleccionado?.hora} hs</strong>
             </p>
             
@@ -190,46 +229,85 @@ export default function Home() {
 
       <hr style={{ margin: '40px 0', border: 'none', borderTop: '2px dashed #ccc' }} />
 
-      {/* PANEL ADMIN */}
-      <section style={{ background: '#f9fafb', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-        <h2>🔒 Panel de Control (Administrador)</h2>
-        
-        <form onSubmit={BloquearTurno} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px', marginBottom: '25px' }}>
-          <h3>Cargar / Bloquear Turno</h3>
-          
-          <select onChange={(e) => setCanchaId(e.target.value)} value={canchaId} required style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}>
-            <option value="">Seleccionar Cancha</option>
-            {canchas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
-          
-          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Fecha:</label>
-          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
-          
-          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Hora inicio:</label>
-          <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} required style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
-          
-          <button type="submit" disabled={guardando} style={{ padding: '12px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-            {guardando ? 'Guardando...' : 'Cargar Turno'}
-          </button>
-        </form>
+      {/* ACCESO / PANEL ADMINISTRADOR */}
+      {!esAdmin ? (
+        <div style={{ textAlign: 'center', padding: '20px', background: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+          <h3>Acceso Administrador</h3>
+          <form onSubmit={loginAdmin} style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '10px' }}>
+            <input 
+              type="password" 
+              placeholder="Contraseña" 
+              value={claveAdmin} 
+              onChange={(e) => setClaveAdmin(e.target.value)} 
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc' }}
+            />
+            <button type="submit" style={{ padding: '8px 16px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+              Ingresar
+            </button>
+          </form>
+        </div>
+      ) : (
+        <section style={{ background: '#f9fafb', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>🔒 Panel de Control (Admin)</h2>
+            <button onClick={() => setEsAdmin(false)} style={{ background: '#666', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Cerrar Sesión</button>
+          </div>
 
-        <h3>Turnos Ocupados / Bloqueados</h3>
-        {reservas.length === 0 ? (
-          <p style={{ color: '#666' }}>No hay turnos registrados.</p>
-        ) : (
-          <ul style={{ paddingLeft: '20px' }}>
-            {reservas.map(r => (
-              <li key={r.id} style={{ marginBottom: '10px' }}>
-                <strong>{r.canchas?.nombre}</strong> - {r.fecha} a las {r.hora_inicio} 
-                {r.cliente_nombre && ` (${r.cliente_nombre} - ${r.cliente_telefono})`}
-                <button onClick={() => cancelarReserva(r.id)} style={{ marginLeft: '12px', color: '#dc2626', background: 'none', border: '1px solid #dc2626', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>
-                  Liberar
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          <form onSubmit={BloquearTurnoAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px', marginBottom: '25px', background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #ddd' }}>
+            <h3>Bloquear / Cargar Turno Manual</h3>
+            <select onChange={(e) => setCanchaId(e.target.value)} value={canchaId} required style={{ padding: '8px' }}>
+              <option value="">Seleccionar Cancha</option>
+              {canchas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+            <input type="date" value={fechaAdmin} onChange={(e) => setFechaAdmin(e.target.value)} required style={{ padding: '8px' }} />
+            <input type="time" value={horaAdmin} onChange={(e) => setHoraAdmin(e.target.value)} required style={{ padding: '8px' }} />
+            <button type="submit" disabled={guardando} style={{ padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {guardando ? 'Guardando...' : 'Bloquear Turno'}
+            </button>
+          </form>
+
+          <h3>Control de Reservas y Pagos</h3>
+          {reservas.length === 0 ? (
+            <p style={{ color: '#666' }}>No hay reservas registradas.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {reservas.map(r => (
+                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                  <div>
+                    <strong>{r.canchas?.nombre}</strong> - {r.fecha} a las {r.hora_inicio} <br />
+                    <small style={{ color: '#555' }}>
+                      Cliente: {r.cliente_nombre ? `${r.cliente_nombre} (${r.cliente_telefono})` : 'Manual / Bloqueado'}
+                    </small>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button 
+                      onClick={() => cambiarEstadoPago(r.id, r.pago_confirmado)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        background: r.pago_confirmado ? '#22c55e' : '#eab308',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {r.pago_confirmado ? '✓ Pago Confirmado' : '⚡ Marcar como Pagado'}
+                    </button>
+                    <button 
+                      onClick={() => cancelarReserva(r.id)} 
+                      style={{ color: '#dc2626', background: 'none', border: '1px solid #dc2626', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px' }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
     </div>
   )
