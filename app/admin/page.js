@@ -104,6 +104,11 @@ export default function AdminPage() {
 
   const [canchaId, setCanchaId] = useState('')
 
+  // Filtros de visualización para la agenda y turnos fijos
+  const [canchaAgendaFiltro, setCanchaAgendaFiltro] = useState('todas')
+  const [canchaFijosFiltro, setCanchaFijosFiltro] = useState('')
+  const [diaFijosFiltro, setDiaFijosFiltro] = useState(1)
+
   const [tipoTurno, setTipoTurno] = useState('casual')
 
   const [clienteNombre, setClienteNombre] = useState('')
@@ -121,7 +126,7 @@ export default function AdminPage() {
   const [horaFijo, setHoraFijo] = useState('18:00')
   const [duracionFijo, setDuracionFijo] = useState(60)
 
-  const [mostrarFijos, setMostrarFijos] = useState(true)
+  const [mostrarFijosActivos, setMostrarFijosActivos] = useState(true)
 
   useEffect(() => {
     cargarDatos()
@@ -179,6 +184,10 @@ export default function AdminPage() {
 
       if (!canchaId && dataCanchas && dataCanchas.length > 0) {
         setCanchaId(dataCanchas[0].id)
+      }
+
+      if (!canchaFijosFiltro && dataCanchas && dataCanchas.length > 0) {
+        setCanchaFijosFiltro(String(dataCanchas[0].id))
       }
 
     } catch (error) {
@@ -255,12 +264,10 @@ export default function AdminPage() {
     })
   }
 
-  // Valida si un rango de tiempo propuesto choca con algo existente en esa fecha y cancha
   function haySolapamiento(canchaSel, fechaSel, horaInicioSel, duracionSel) {
     const inicioNuevo = minutosDesdeHora(horaInicioSel)
     const finNuevo = inicioNuevo + duracionSel
 
-    // Revisar reservas casuales en esa fecha/cancha
     const chocaCasual = reservasNormales.some(r => {
       if (Number(r.cancha_id) !== Number(canchaSel)) return false
       if (r.fecha !== fechaSel) return false
@@ -271,7 +278,6 @@ export default function AdminPage() {
 
     if (chocaCasual) return true
 
-    // Revisar turnos fijos que apliquen a este día de la semana y rango de fechas
     const chocaFijo = turnosFijos.some(t => {
       if (Number(t.cancha_id) !== Number(canchaSel)) return false
       if (!turnoFijoCoincideConFecha(t, fechaSel)) return false
@@ -283,12 +289,10 @@ export default function AdminPage() {
     return chocaFijo
   }
 
-  // Filtra los horarios de inicio para que solo muestren aquellos donde entre completa la duración seleccionada sin solaparse
   function horariosDisponiblesParaCrear(fechaSel, duracionSel) {
     if (!canchaId || !fechaSel) return []
 
     return HORARIOS.filter(hora => {
-      // Validar si el turno completo cabe y no se solapa
       return !haySolapamiento(canchaId, fechaSel, hora, duracionSel)
     })
   }
@@ -388,7 +392,6 @@ export default function AdminPage() {
       return
     }
 
-    // Verificar si en alguna fecha del rango y día seleccionado hay conflicto
     let fechaCheck = new Date(`${fechaDesde}T12:00:00`)
     const fechaFinObj = new Date(`${fechaHasta}T12:00:00`)
     let hayConflicto = false
@@ -502,10 +505,6 @@ export default function AdminPage() {
 
     cargarDatos()
   }
-
-  const fijosDelDia = turnosFijos.filter(
-    t => turnoFijoCoincideConFecha(t, fechaAgenda)
-  )
 
   const reservasNormales = reservas.filter(
     r => r.estado !== 'bloqueado'
@@ -1068,7 +1067,7 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* AGENDA */}
+        {/* AGENDA (SOLO RESERVAS DEL DÍA, FILTRABLE POR CANCHA, AL CONFIRMAR PAGO DESAPARECE) */}
         <section className="tarjeta">
           <h2>📅 Agenda</h2>
 
@@ -1082,127 +1081,163 @@ export default function AdminPage() {
             </button>
           </div>
 
+          <div className="campo" style={{ marginBottom: '15px' }}>
+            <label>Filtrar por Cancha en Agenda</label>
+            <select
+              value={canchaAgendaFiltro}
+              onChange={(e) => setCanchaAgendaFiltro(e.target.value)}
+            >
+              <option value="todas">Todas las canchas</option>
+              {canchas.map(c => (
+                <option key={c.id} value={c.id}>
+                  {nombreCancha(c.id)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {cargando ? (
             <div className="vacio">Cargando...</div>
           ) : (
-            canchas.map(cancha => {
-              // Filtrar reservas que NO estén pagadas (si están pagadas, se ocultan de la agenda)
-              const reservasCancha = reservasNormales.filter(
-                r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
-              )
+            canchas
+              .filter(c => canchaAgendaFiltro === 'todas' || Number(canchaAgendaFiltro) === Number(c.id))
+              .map(cancha => {
+                const reservasCancha = reservasNormales.filter(
+                  r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
+                )
 
-              const fijosCancha = fijosDelDia.filter(
-                r => Number(r.cancha_id) === Number(cancha.id)
-              )
+                return (
+                  <div className="agendaCancha" key={cancha.id}>
+                    <h3>🎾 {nombreCancha(cancha.id)}</h3>
 
-              return (
-                <div className="agendaCancha" key={cancha.id}>
-                  <h3>🎾 {nombreCancha(cancha.id)}</h3>
+                    {reservasCancha.map(reserva => (
+                      <div className="reserva" key={reserva.id}>
+                        <strong>
+                          🟢 {reserva.hora_inicio}
+                          {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
+                        </strong>
+                        <div className="info">
+                          Cliente: {reserva.cliente_nombre || 'Sin nombre'}
+                          {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
+                        </div>
+                        <div className="acciones">
+                          <button
+                            className="btnPago pendiente"
+                            onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
+                          >
+                            ⚡ Confirmar pago
+                          </button>
 
-                  {mostrarFijos && fijosCancha.map(fijo => (
-                    <div className="fijo" key={`fijo-${fijo.id}`}>
-                      <strong>
-                        🔵 {fijo.hora_inicio} - {horaFinTurno(fijo)}
-                      </strong>
-                      <div className="info">
-                        Turno fijo · {fijo.cliente_nombre}
-                        {fijo.cliente_telefono ? ` · ${fijo.cliente_telefono}` : ''}
+                          <button
+                            className="btnEliminar"
+                            onClick={() => cancelarReserva(reserva.id)}
+                          >
+                            🗑️ Liberar turno
+                          </button>
+                        </div>
                       </div>
-                      <div className="acciones">
-                        <button
-                          className="btnEliminar"
-                          onClick={() => eliminarTurnoFijo(fijo.id)}
-                        >
-                          🗑️ Eliminar fijo
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
 
-                  {reservasCancha.map(reserva => (
-                    <div className="reserva" key={reserva.id}>
-                      <strong>
-                        🟢 {reserva.hora_inicio}
-                        {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
-                      </strong>
-                      <div className="info">
-                        Cliente: {reserva.cliente_nombre || 'Sin nombre'}
-                        {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
-                      </div>
-                      <div className="acciones">
-                        <button
-                          className="btnPago pendiente"
-                          onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
-                        >
-                          ⚡ Confirmar pago
-                        </button>
-
-                        <button
-                          className="btnEliminar"
-                          onClick={() => cancelarReserva(reserva.id)}
-                        >
-                          🗑️ Liberar turno
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {reservasCancha.length === 0 && fijosCancha.length === 0 && (
-                    <div className="vacio">No hay reservas pendientes.</div>
-                  )}
-                </div>
-              )
-            })
+                    {reservasCancha.length === 0 && (
+                      <div className="vacio">No hay reservas pendientes para esta cancha.</div>
+                    )}
+                  </div>
+                )
+              })
           )}
         </section>
 
-        {/* TURNOS FIJOS, SEPARADOS POR DÍA DE LA SEMANA */}
+        {/* TURNOS FIJOS ACTIVOS (SEPARADOS POR CANCHA Y DÍA DE LUNES A DOMINGO) */}
         <section className="tarjeta">
           <button
             className="toggle"
-            onClick={() => setMostrarFijos(!mostrarFijos)}
+            onClick={() => setMostrarFijosActivos(!mostrarFijosActivos)}
           >
-            🔵 Turnos fijos activos ({turnosFijos.length}) {mostrarFijos ? '▲' : '▼'}
+            🔵 Turnos fijos activos ({turnosFijos.length}) {mostrarFijosActivos ? '▲' : '▼'}
           </button>
 
-          {mostrarFijos && DIAS.map(diaInfo => {
-            const fijosDelDiaSemana = turnosFijos.filter(
-              t => Array.isArray(t.dias_semana) && t.dias_semana.includes(diaInfo.numero)
-            )
-
-            return (
-              <div className="grupoCancha" key={diaInfo.numero}>
-                <h3>📅 {diaInfo.nombre} ({fijosDelDiaSemana.length})</h3>
-
-                {fijosDelDiaSemana.length === 0 && (
-                  <div className="vacio">Sin turnos fijos los días {diaInfo.nombre.toLowerCase()}.</div>
-                )}
-
-                {fijosDelDiaSemana.map(fijo => (
-                  <div className="fijo" key={fijo.id}>
-                    <strong>
-                      🎾 {nombreCancha(fijo.cancha_id)} — {fijo.hora_inicio} a {horaFinTurno(fijo)}
-                    </strong>
-                    <div className="info">
-                      👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
-                      {fijo.cliente_telefono ? ` · 📞 ${fijo.cliente_telefono}` : ' · 📞 Sin teléfono'}
-                    </div>
-                    <div className="info">
-                      🗓️ <strong>Vigencia:</strong> {fijo.fecha_desde} → {fijo.fecha_hasta}
-                    </div>
-                    <div className="acciones">
-                      <button
-                        className="btnEliminar"
-                        onClick={() => eliminarTurnoFijo(fijo.id)}
-                      >
-                        🗑️ Eliminar turno fijo
-                      </button>
-                    </div>
-                  </div>
-                ))}
+          {mostrarFijosActivos && (
+            <>
+              {/* Selector de Cancha para Turnos Fijos */}
+              <div className="campo" style={{ marginTop: '10px' }}>
+                <label>Seleccionar Cancha</label>
+                <select
+                  value={canchaFijosFiltro}
+                  onChange={(e) => setCanchaFijosFiltro(e.target.value)}
+                >
+                  {canchas.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {nombreCancha(c.id)}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )
-          })}
+
+              {/* Selector de Día de la Semana (Lunes a Domingo) */}
+              <div className="campo">
+                <label>Día de la semana</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  {DIAS.map(d => (
+                    <button
+                      key={d.numero}
+                      type="button"
+                      className={`dia ${diaFijosFiltro === d.numero ? 'activo' : ''}`}
+                      onClick={() => setDiaFijosFiltro(d.numero)}
+                      style={{ padding: '8px 2px', fontSize: '11px' }}
+                    >
+                      {d.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Listado de turnos fijos filtrados por la cancha y día seleccionados */}
+              <div style={{ marginTop: '15px' }}>
+                {(() => {
+                  const fijosFiltrados = turnosFijos.filter(t => {
+                    const coincideCancha = Number(t.cancha_id) === Number(canchaFijosFiltro)
+                    const coincideDia = Array.isArray(t.dias_semana) && t.dias_semana.includes(diaFijosFiltro)
+                    return coincideCancha && coincideDia
+                  })
+
+                  const diaNombreActual = DIAS.find(d => d.numero === diaFijosFiltro)?.nombre || ''
+
+                  return (
+                    <div className="grupoCancha">
+                      <h3>📅 {nombreCancha(canchaFijosFiltro)} — {diaNombreActual} ({fijosFiltrados.length})</h3>
+
+                      {fijosFiltrados.length === 0 && (
+                        <div className="vacio">No hay turnos fijos para este día en esta cancha.</div>
+                      )}
+
+                      {fijosFiltrados.map(fijo => (
+                        <div className="fijo" key={fijo.id}>
+                          <strong>
+                            ⏰ {fijo.hora_inicio} a {horaFinTurno(fijo)}
+                          </strong>
+                          <div className="info">
+                            👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
+                            {fijo.cliente_telefono ? ` · 📞 ${fijo.cliente_telefono}` : ' · 📞 Sin teléfono'}
+                          </div>
+                          <div className="info">
+                            🗓️ <strong>Vigencia:</strong> {fijo.fecha_desde} → {fijo.fecha_hasta}
+                          </div>
+                          <div className="acciones">
+                            <button
+                              className="btnEliminar"
+                              onClick={() => eliminarTurnoFijo(fijo.id)}
+                            >
+                              🗑️ Eliminar turno fijo
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            </>
+          )}
         </section>
       </div>
     </main>
