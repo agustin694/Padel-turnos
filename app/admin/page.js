@@ -119,9 +119,7 @@ export default function AdminPage() {
   const [horaCasual, setHoraCasual] = useState('')
   const [duracionCasual, setDuracionCasual] = useState(60)
 
-  // Campos turno fijo
-  const [fechaDesde, setFechaDesde] = useState(hoyLocal())
-  const [fechaHasta, setFechaHasta] = useState('')
+  // Campos turno fijo (sin vigencia)
   const [diasSeleccionados, setDiasSeleccionados] = useState([])
   const [horaFijo, setHoraFijo] = useState('18:00')
   const [duracionFijo, setDuracionFijo] = useState(60)
@@ -216,10 +214,6 @@ export default function AdminPage() {
   }
 
   function turnoFijoCoincideConFecha(turno, fecha) {
-    if (fecha < turno.fecha_desde || fecha > turno.fecha_hasta) {
-      return false
-    }
-
     const fechaObj = new Date(`${fecha}T12:00:00`)
     const dia = fechaObj.getDay()
 
@@ -377,43 +371,8 @@ export default function AdminPage() {
       return
     }
 
-    if (!fechaDesde || !fechaHasta) {
-      alert('Seleccioná las fechas.')
-      return
-    }
-
-    if (fechaHasta < fechaDesde) {
-      alert('La fecha hasta no puede ser anterior a la fecha desde.')
-      return
-    }
-
     if (diasSeleccionados.length === 0) {
       alert('Seleccioná al menos un día de la semana.')
-      return
-    }
-
-    let fechaCheck = new Date(`${fechaDesde}T12:00:00`)
-    const fechaFinObj = new Date(`${fechaHasta}T12:00:00`)
-    let hayConflicto = false
-
-    while (fechaCheck <= fechaFinObj) {
-      const y = fechaCheck.getFullYear()
-      const m = String(fechaCheck.getMonth() + 1).padStart(2, '0')
-      const day = String(fechaCheck.getDate()).padStart(2, '0')
-      const fechaStr = `${y}-${m}-${day}`
-      const diaSemana = fechaCheck.getDay()
-
-      if (diasSeleccionados.includes(diaSemana)) {
-        if (haySolapamiento(canchaId, fechaStr, horaFijo, duracionFijo)) {
-          hayConflicto = true
-          break
-        }
-      }
-      fechaCheck.setDate(fechaCheck.getDate() + 1)
-    }
-
-    if (hayConflicto) {
-      alert('⚠️ Hay un conflicto de horarios en alguna de las fechas/días seleccionados. El horario ya está ocupado.')
       return
     }
 
@@ -427,8 +386,8 @@ export default function AdminPage() {
             cancha_id: canchaId,
             cliente_nombre: clienteNombre.trim(),
             cliente_telefono: clienteTelefono.trim() || null,
-            fecha_desde: fechaDesde,
-            fecha_hasta: fechaHasta,
+            fecha_desde: hoyLocal(),
+            fecha_hasta: '2099-12-31',
             dias_semana: diasSeleccionados,
             hora_inicio: horaFijo,
             duracion_minutos: duracionFijo,
@@ -443,7 +402,6 @@ export default function AdminPage() {
       setClienteNombre('')
       setClienteTelefono('')
       setDiasSeleccionados([])
-      setFechaHasta('')
 
       await cargarDatos()
 
@@ -712,6 +670,14 @@ export default function AdminPage() {
         .reserva {
           background: #182c24;
           border-left: 4px solid #d7ff45;
+          padding: 12px;
+          border-radius: 10px;
+          margin-bottom: 8px;
+        }
+
+        .reservaConfirmada {
+          background: #0f2619;
+          border-left: 4px solid #16a34a;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 8px;
@@ -988,26 +954,6 @@ export default function AdminPage() {
               </>
             ) : (
               <>
-                <div className="fila">
-                  <div className="campo">
-                    <label>Desde</label>
-                    <input
-                      type="date"
-                      value={fechaDesde}
-                      onChange={(e) => setFechaDesde(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="campo">
-                    <label>Hasta</label>
-                    <input
-                      type="date"
-                      value={fechaHasta}
-                      onChange={(e) => setFechaHasta(e.target.value)}
-                    />
-                  </div>
-                </div>
-
                 <div className="campo">
                   <label>Días de la semana</label>
                   <div className="dias">
@@ -1027,12 +973,12 @@ export default function AdminPage() {
 
                 <div className="fila">
                   <div className="campo">
-                    <label>Hora de inicio (Disponibles)</label>
+                    <label>Hora de inicio</label>
                     <select
                       value={horaFijo}
                       onChange={(e) => setHoraFijo(e.target.value)}
                     >
-                      {horariosDisponiblesFijo.map(hora => (
+                      {HORARIOS.map(hora => (
                         <option key={hora} value={hora}>
                           {hora}
                         </option>
@@ -1067,7 +1013,7 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* AGENDA (SOLO RESERVAS DEL DÍA, FILTRABLE POR CANCHA, AL CONFIRMAR PAGO DESAPARECE) */}
+        {/* AGENDA (SOLO RESERVAS DEL DÍA, SIN FIJOS, AL CONFIRMAR PAGO DESAPARECE Y MUESTRA TURNO CONFIRMADO EN VERDE) */}
         <section className="tarjeta">
           <h2>📅 Agenda</h2>
 
@@ -1102,15 +1048,20 @@ export default function AdminPage() {
             canchas
               .filter(c => canchaAgendaFiltro === 'todas' || Number(canchaAgendaFiltro) === Number(c.id))
               .map(cancha => {
-                const reservasCancha = reservasNormales.filter(
+                const reservasPendientes = reservasNormales.filter(
                   r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
+                )
+
+                const reservasConfirmadas = reservasNormales.filter(
+                  r => Number(r.cancha_id) === Number(cancha.id) && r.pago_confirmado
                 )
 
                 return (
                   <div className="agendaCancha" key={cancha.id}>
                     <h3>🎾 {nombreCancha(cancha.id)}</h3>
 
-                    {reservasCancha.map(reserva => (
+                    {/* Pendientes */}
+                    {reservasPendientes.map(reserva => (
                       <div className="reserva" key={reserva.id}>
                         <strong>
                           🟢 {reserva.hora_inicio}
@@ -1138,8 +1089,47 @@ export default function AdminPage() {
                       </div>
                     ))}
 
-                    {reservasCancha.length === 0 && (
-                      <div className="vacio">No hay reservas pendientes para esta cancha.</div>
+                    {/* Confirmados (Pagados) */}
+                    {reservasConfirmadas.length > 0 && (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginBottom: '6px' }}>
+                          ✅ Turnos confirmados (Pagados)
+                        </div>
+                        {reservasConfirmadas.map(reserva => (
+                          <div className="reservaConfirmada" key={reserva.id}>
+                            <strong>
+                              🟢 {reserva.hora_inicio}
+                              {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
+                            </strong>
+                            <div className="info">
+                              Cliente: {reserva.cliente_nombre || 'Sin nombre'}
+                              {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
+                            </div>
+                            <div className="info" style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                              ✓ Turno confirmado
+                            </div>
+                            <div className="acciones">
+                              <button
+                                className="btnPago pagado"
+                                onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
+                              >
+                                🔄 Deshacer pago
+                              </button>
+
+                              <button
+                                className="btnEliminar"
+                                onClick={() => cancelarReserva(reserva.id)}
+                              >
+                                🗑️ Liberar turno
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {reservasPendientes.length === 0 && reservasConfirmadas.length === 0 && (
+                      <div className="vacio">No hay reservas para esta cancha.</div>
                     )}
                   </div>
                 )
@@ -1218,9 +1208,6 @@ export default function AdminPage() {
                           <div className="info">
                             👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
                             {fijo.cliente_telefono ? ` · 📞 ${fijo.cliente_telefono}` : ' · 📞 Sin teléfono'}
-                          </div>
-                          <div className="info">
-                            🗓️ <strong>Vigencia:</strong> {fijo.fecha_desde} → {fijo.fecha_hasta}
                           </div>
                           <div className="acciones">
                             <button
