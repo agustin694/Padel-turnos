@@ -343,10 +343,24 @@ export default function AdminPage() {
     const dia =
       fechaObj.getDay()
 
-    return (
-      Array.isArray(turno.dias_semana) &&
-      turno.dias_semana.includes(dia)
-    )
+    const coincideDia = Array.isArray(turno.dias_semana) && turno.dias_semana.includes(dia)
+    if (!coincideDia) return false
+
+    const estaBloqueado = reservas.some(r => {
+      if (r.estado !== 'bloqueado') return false
+      if (Number(r.cancha_id) !== Number(turno.cancha_id)) return false
+      if (r.fecha !== fecha) return false
+
+      const inicioFijo = minutosDesdeHora(turno.hora_inicio)
+      const finFijo = inicioFijo + (turno.duracion_minutos || 60)
+      
+      const inicioBloqueo = minutosDesdeHora(r.hora_inicio)
+      const finBloqueo = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioBloqueo + 60
+
+      return inicioFijo < finBloqueo && finFijo > inicioBloqueo
+    })
+
+    return !estaBloqueado
   }
 
   function horaFinTurno(turno) {
@@ -990,6 +1004,48 @@ export default function AdminPage() {
     )
 
     await cargarDatos()
+  }
+
+  async function liberarTurnoFijoPorDia(fijo, fechaAgendaActual) {
+    const confirmar = confirm(
+      `¿Querés liberar este turno fijo solamente para el día ${fechaAgendaActual}?\n\n` +
+      `Cliente: ${fijo.cliente_nombre}\n` +
+      `Horario: ${fijo.hora_inicio} - ${horaFinTurno(fijo)}\n\n` +
+      `El turno fijo seguirá activo para las próximas semanas, pero este día quedará libre.`
+    )
+
+    if (!confirmar) return
+
+    setGuardando(true)
+
+    try {
+      const horaFin = horaFinTurno(fijo)
+
+      const { error } = await supabase
+        .from('reservas')
+        .insert([
+          {
+            cancha_id: fijo.cancha_id,
+            fecha: fechaAgendaActual,
+            hora_inicio: fijo.hora_inicio,
+            hora_fin: horaFin,
+            cliente_nombre: `[LIBERADO] ${fijo.cliente_nombre}`,
+            estado: 'bloqueado',
+            pago_confirmado: false,
+            tipo: 'bloqueo'
+          }
+        ])
+
+      if (error) throw error
+
+      alert('✅ Turno liberado correctamente solo para este día.')
+      await cargarDatos()
+    } catch (error) {
+      console.error(error)
+      alert('No se pudo liberar el turno para este día:\n\n' + error.message)
+    } finally {
+      setGuardando(false)
+    }
   }
 
   async function cancelarReserva(id) {
@@ -2683,14 +2739,27 @@ export default function AdminPage() {
 
                               <button
                                 className="btnEliminar"
+                                style={{ borderColor: '#eab308', color: '#eab308' }}
+                                disabled={guardando}
+                                onClick={() =>
+                                  liberarTurnoFijoPorDia(
+                                    fijo,
+                                    fechaAgenda
+                                  )
+                                }
+                              >
+                                🔓 Liberar solo este día ({fechaAgenda})
+                              </button>
+
+                              <button
+                                className="btnEliminar"
                                 onClick={() =>
                                   eliminarTurnoFijo(
                                     fijo.id
                                   )
                                 }
                               >
-                                🗑️ Eliminar
-                                turno fijo
+                                🗑️ Eliminar definitivo
                               </button>
 
                             </div>
