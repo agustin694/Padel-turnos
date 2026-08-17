@@ -47,6 +47,14 @@ function hoyLocal() {
   ).padStart(2, '0')}`
 }
 
+function formatearFechaConDia(fechaStr) {
+  if (!fechaStr) return ''
+  const d = new Date(`${fechaStr}T12:00:00`)
+  const diaSemana = DIAS[d.getDay()].nombre
+  const [anio, mes, dia] = fechaStr.split('-')
+  return `${diaSemana} ${mes}-${dia}`
+}
+
 function telefonoWhatsAppArgentina(telefono) {
   if (!telefono) return null
 
@@ -1098,9 +1106,10 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      // Generar texto para el estado de WhatsApp
+      // Generar texto para el estado de WhatsApp con formato Fecha: YYYY-MM-DD (Día MM-DD)
       const nomCancha = nombreCancha(fijo.cancha_id)
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaAgendaActual}\n🏟️ ${nomCancha}\n⏰ Horario: ${fijo.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+      const fechaFormateada = `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${fijo.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1124,7 +1133,6 @@ export default function AdminPage() {
 
     if (!confirmar) return
 
-    // Opcional: Buscar los datos de la reserva antes de borrarla por si quiere armar estado de WhatsApp
     const reservaAEliminar = reservas.find(r => r.id === id)
 
     const { error } =
@@ -1145,7 +1153,8 @@ export default function AdminPage() {
     if (reservaAEliminar) {
       const nomCancha = nombreCancha(reservaAEliminar.cancha_id)
       const horaFin = reservaAEliminar.hora_fin || sumarMinutos(reservaAEliminar.hora_inicio, 90)
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${reservaAEliminar.fecha}\n🏟️ ${nomCancha}\n⏰ Horario: ${reservaAEliminar.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+      const fechaFormateada = `${reservaAEliminar.fecha} (${formatearFechaConDia(reservaAEliminar.fecha)})`
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${reservaAEliminar.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1627,29 +1636,38 @@ export default function AdminPage() {
 
       <div className="contenedor">
 
-        {/* Modal flotante para copiar texto de estado de WhatsApp */}
+        {/* Modal flotante para ir directo a WhatsApp */}
         {modalWhatsApp.abierto && (
           <div className="modalOverlay">
             <div className="modalContenido">
               <h3>📱 ¡Turno liberado con éxito!</h3>
               <p style={{ fontSize: '13px', color: '#afc0b8', marginBottom: '10px' }}>
-                Copiá este texto para subirlo a tu estado o compartirlo en grupos de WhatsApp:
+                Hacé clic en WhatsApp para abrirlo y decidir a quién enviárselo o subirlo a tu estado:
               </p>
               <textarea
                 value={modalWhatsApp.texto}
                 readOnly
               />
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button
+                <a
                   className="btnPrincipal"
-                  style={{ margin: 0 }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(modalWhatsApp.texto)
-                    alert('📋 ¡Texto copiado al portapapeles!')
+                  style={{ 
+                    margin: 0, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    background: '#25d366', 
+                    color: '#07110d', 
+                    textDecoration: 'none',
+                    textAlign: 'center'
                   }}
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(modalWhatsApp.texto)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setModalWhatsApp({ abierto: false, texto: '' })}
                 >
-                  📋 Copiar texto
-                </button>
+                  💬 WhatsApp
+                </a>
                 <button
                   type="button"
                   onClick={() => setModalWhatsApp({ abierto: false, texto: '' })}
