@@ -160,7 +160,6 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] =
     useState(hoyLocal())
 
-  // Estado para la sección de búsqueda de próximas semanas (colapsada por defecto)
   const [buscarReservasAbierto, setBuscarReservasAbierto] = useState(false)
   const [fechaConsultaFutura, setFechaConsultaFutura] = useState(sumarDias(hoyLocal(), 7))
   const [reservasFuturasConsulta, setReservasFuturasConsulta] = useState([])
@@ -193,6 +192,12 @@ export default function AdminPage() {
     setMostrarCasualesConfirmados
   ] = useState(true)
 
+  // NUEVO: abrir/cerrar la sección de pendientes
+  const [
+    mostrarPendientesPago,
+    setMostrarPendientesPago
+  ] = useState(true)
+
   const [tipoTurno, setTipoTurno] =
     useState('casual')
 
@@ -223,7 +228,6 @@ export default function AdminPage() {
   const [mostrarFijosActivos, setMostrarFijosActivos] =
     useState(true)
 
-  // Estado para el modal / cuadro flotante del estado de WhatsApp
   const [modalWhatsApp, setModalWhatsApp] = useState({
     abierto: false,
     texto: ''
@@ -271,11 +275,13 @@ export default function AdminPage() {
           .select('*')
           .order('id'),
 
+        // MODIFICADO:
+        // Ahora trae TODAS las reservas, no solamente las de fechaAgenda.
         supabase
           .from('reservas')
           .select('*, canchas(nombre)')
-          .eq('fecha', fechaAgenda)
-          .order('hora_inicio'),
+          .order('fecha', { ascending: true })
+          .order('hora_inicio', { ascending: true }),
 
         supabase
           .from('turnos_fijos')
@@ -334,14 +340,15 @@ export default function AdminPage() {
   async function consultarFechaFutura(fechaStr) {
     if (!fechaStr) return
     setCargandoConsultaFutura(true)
+
     try {
-      // Traemos SOLO los turnos casuales confirmados para esa fecha específica
-      const { data: resData, error: resError } = await supabase
-        .from('reservas')
-        .select('*, canchas(nombre)')
-        .eq('fecha', fechaStr)
-        .eq('estado', 'confirmada')
-        .order('hora_inicio')
+      const { data: resData, error: resError } =
+        await supabase
+          .from('reservas')
+          .select('*, canchas(nombre)')
+          .eq('fecha', fechaStr)
+          .eq('estado', 'confirmada')
+          .order('hora_inicio')
 
       if (resError) throw resError
 
@@ -396,7 +403,10 @@ export default function AdminPage() {
     const dia =
       fechaObj.getDay()
 
-    const coincideDia = Array.isArray(turno.dias_semana) && turno.dias_semana.includes(dia)
+    const coincideDia =
+      Array.isArray(turno.dias_semana) &&
+      turno.dias_semana.includes(dia)
+
     if (!coincideDia) return false
 
     return true
@@ -412,13 +422,25 @@ export default function AdminPage() {
       if (Number(r.cancha_id) !== Number(turno.cancha_id)) return false
       if (r.fecha !== fecha) return false
 
-      const inicioFijo = minutosDesdeHora(turno.hora_inicio)
-      const finFijo = inicioFijo + (turno.duracion_minutos || 60)
-      
-      const inicioBloqueo = minutosDesdeHora(r.hora_inicio)
-      const finBloqueo = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioBloqueo + 60
+      const inicioFijo =
+        minutosDesdeHora(turno.hora_inicio)
 
-      return inicioFijo < finBloqueo && finFijo > inicioBloqueo
+      const finFijo =
+        inicioFijo +
+        (turno.duracion_minutos || 60)
+
+      const inicioBloqueo =
+        minutosDesdeHora(r.hora_inicio)
+
+      const finBloqueo =
+        r.hora_fin
+          ? minutosDesdeHora(r.hora_fin)
+          : inicioBloqueo + 60
+
+      return (
+        inicioFijo < finBloqueo &&
+        finFijo > inicioBloqueo
+      )
     })
   }
 
@@ -426,7 +448,11 @@ export default function AdminPage() {
     turno,
     fecha
   ) {
-    return estaTurnoFijoLiberadoEnFechaConLista(turno, fecha, reservas)
+    return estaTurnoFijoLiberadoEnFechaConLista(
+      turno,
+      fecha,
+      reservas
+    )
   }
 
   function horaFinTurno(turno) {
@@ -722,6 +748,7 @@ export default function AdminPage() {
       setHoraCasual('')
 
       await cargarDatos()
+
       if (buscarReservasAbierto) {
         consultarFechaFutura(fechaConsultaFutura)
       }
@@ -907,6 +934,7 @@ export default function AdminPage() {
       setDiasSeleccionados([])
 
       await cargarDatos()
+
       if (buscarReservasAbierto) {
         consultarFechaFutura(fechaConsultaFutura)
       }
@@ -1054,6 +1082,7 @@ export default function AdminPage() {
       )
 
       await cargarDatos()
+
       if (buscarReservasAbierto) {
         consultarFechaFutura(fechaConsultaFutura)
       }
@@ -1097,43 +1126,64 @@ export default function AdminPage() {
     )
 
     await cargarDatos()
+
     if (buscarReservasAbierto) {
       consultarFechaFutura(fechaConsultaFutura)
     }
   }
 
-  async function liberarTurnoFijoPorDia(fijo, fechaAgendaActual) {
-    const yaLiberado = estaTurnoFijoLiberadoEnFechaConLista(fijo, fechaAgendaActual, reservasFuturasConsulta)
+  async function liberarTurnoFijoPorDia(
+    fijo,
+    fechaAgendaActual
+  ) {
+    const yaLiberado =
+      estaTurnoFijoLiberadoEnFechaConLista(
+        fijo,
+        fechaAgendaActual,
+        reservas
+      )
 
     if (yaLiberado) {
       const confirmar = confirm(
         `Este turno ya está liberado para el día ${fechaAgendaActual}. ¿Querés volver a activarlo?`
       )
+
       if (!confirmar) return
 
       setGuardando(true)
+
       try {
-        const { error } = await supabase
-          .from('reservas')
-          .delete()
-          .eq('cancha_id', fijo.cancha_id)
-          .eq('fecha', fechaAgendaActual)
-          .eq('estado', 'bloqueado')
-          .eq('hora_inicio', fijo.hora_inicio)
+        const { error } =
+          await supabase
+            .from('reservas')
+            .delete()
+            .eq('cancha_id', fijo.cancha_id)
+            .eq('fecha', fechaAgendaActual)
+            .eq('estado', 'bloqueado')
+            .eq('hora_inicio', fijo.hora_inicio)
 
         if (error) throw error
 
-        alert('✅ Turno reactivado correctamente para este día.')
+        alert(
+          '✅ Turno reactivado correctamente para este día.'
+        )
+
         await cargarDatos()
+
         if (buscarReservasAbierto) {
           consultarFechaFutura(fechaConsultaFutura)
         }
       } catch (error) {
         console.error(error)
-        alert('No se pudo reactivar el turno:\n\n' + error.message)
+
+        alert(
+          'No se pudo reactivar el turno:\n\n' +
+          error.message
+        )
       } finally {
         setGuardando(false)
       }
+
       return
     }
 
@@ -1151,26 +1201,37 @@ export default function AdminPage() {
     try {
       const horaFin = horaFinTurno(fijo)
 
-      const { error } = await supabase
-        .from('reservas')
-        .insert([
-          {
-            cancha_id: fijo.cancha_id,
-            fecha: fechaAgendaActual,
-            hora_inicio: fijo.hora_inicio,
-            hora_fin: horaFin,
-            cliente_nombre: `[LIBERADO] ${fijo.cliente_nombre}`,
-            estado: 'bloqueado',
-            pago_confirmado: false,
-            tipo: 'bloqueo'
-          }
-        ])
+      const { error } =
+        await supabase
+          .from('reservas')
+          .insert([
+            {
+              cancha_id: fijo.cancha_id,
+              fecha: fechaAgendaActual,
+              hora_inicio: fijo.hora_inicio,
+              hora_fin: horaFin,
+              cliente_nombre:
+                `[LIBERADO] ${fijo.cliente_nombre}`,
+              estado: 'bloqueado',
+              pago_confirmado: false,
+              tipo: 'bloqueo'
+            }
+          ])
 
       if (error) throw error
 
-      const nomCancha = `${nombreCancha(fijo.cancha_id)} (${nombreCancha(fijo.cancha_id).toLowerCase()})`
-      const fechaFormateada = `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
+      const nomCancha =
+        `${nombreCancha(fijo.cancha_id)} (${nombreCancha(fijo.cancha_id).toLowerCase()})`
+
+      const fechaFormateada =
+        `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
+
+      const textoEstado =
+        `¡Se acaba de liberar un turno! 🎾⚡\n\n` +
+        `📅 Fecha: ${fechaFormateada}\n` +
+        `🏟️ ${nomCancha}\n` +
+        `⏰ Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFin)}\n\n` +
+        `¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1178,12 +1239,17 @@ export default function AdminPage() {
       })
 
       await cargarDatos()
+
       if (buscarReservasAbierto) {
         consultarFechaFutura(fechaConsultaFutura)
       }
     } catch (error) {
       console.error(error)
-      alert('No se pudo liberar el turno para este día:\n\n' + error.message)
+
+      alert(
+        'No se pudo liberar el turno para este día:\n\n' +
+        error.message
+      )
     } finally {
       setGuardando(false)
     }
@@ -1197,7 +1263,13 @@ export default function AdminPage() {
 
     if (!confirmar) return
 
-    const reservaAEliminar = reservasFuturasConsulta.find(r => r.id === id) || reservas.find(r => r.id === id)
+    const reservaAEliminar =
+      reservasFuturasConsulta.find(
+        r => r.id === id
+      ) ||
+      reservas.find(
+        r => r.id === id
+      )
 
     const { error } =
       await supabase
@@ -1215,10 +1287,25 @@ export default function AdminPage() {
     }
 
     if (reservaAEliminar) {
-      const nomCancha = `${nombreCancha(reservaAEliminar.cancha_id)} (${nombreCancha(reservaAEliminar.cancha_id).toLowerCase()})`
-      const horaFin = reservaAEliminar.hora_fin || sumarMinutos(reservaAEliminar.hora_inicio, 90)
-      const fechaFormateada = `${reservaAEliminar.fecha} (${formatearFechaConDia(reservaAEliminar.fecha)})`
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(reservaAEliminar.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
+      const nomCancha =
+        `${nombreCancha(reservaAEliminar.cancha_id)} (${nombreCancha(reservaAEliminar.cancha_id).toLowerCase()})`
+
+      const horaFin =
+        reservaAEliminar.hora_fin ||
+        sumarMinutos(
+          reservaAEliminar.hora_inicio,
+          90
+        )
+
+      const fechaFormateada =
+        `${reservaAEliminar.fecha} (${formatearFechaConDia(reservaAEliminar.fecha)})`
+
+      const textoEstado =
+        `¡Se acaba de liberar un turno! 🎾⚡\n\n` +
+        `📅 Fecha: ${fechaFormateada}\n` +
+        `🏟️ ${nomCancha}\n` +
+        `⏰ Horario: ${formatearHora(reservaAEliminar.hora_inicio)} a ${formatearHora(horaFin)}\n\n` +
+        `¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1227,6 +1314,7 @@ export default function AdminPage() {
     }
 
     await cargarDatos()
+
     if (buscarReservasAbierto) {
       consultarFechaFutura(fechaConsultaFutura)
     }
@@ -1265,6 +1353,7 @@ export default function AdminPage() {
     }
 
     await cargarDatos()
+
     if (buscarReservasAbierto) {
       consultarFechaFutura(fechaConsultaFutura)
     }
@@ -1667,7 +1756,6 @@ export default function AdminPage() {
           border-color: #c084fc;
         }
 
-        /* Estilos del Modal para Estado de WhatsApp */
         .modalOverlay {
           position: fixed;
           top: 0;
@@ -1731,41 +1819,65 @@ export default function AdminPage() {
 
       <div className="contenedor">
 
-        {/* Modal flotante para ir directo a WhatsApp */}
         {modalWhatsApp.abierto && (
           <div className="modalOverlay">
             <div className="modalContenido">
               <h3>📱 ¡Turno liberado con éxito!</h3>
-              <p style={{ fontSize: '13px', color: '#afc0b8', marginBottom: '10px' }}>
+
+              <p
+                style={{
+                  fontSize: '13px',
+                  color: '#afc0b8',
+                  marginBottom: '10px'
+                }}
+              >
                 Hacé clic en WhatsApp para abrirlo y decidir a quién enviárselo o subirlo a tu estado:
               </p>
+
               <textarea
                 value={modalWhatsApp.texto}
                 readOnly
               />
-              <div style={{ display: 'flex', gap: '8px' }}>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px'
+                }}
+              >
                 <a
                   className="btnPrincipal"
-                  style={{ 
-                    margin: 0, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    background: '#25d366', 
-                    color: '#07110d', 
+                  style={{
+                    margin: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#25d366',
+                    color: '#07110d',
                     textDecoration: 'none',
                     textAlign: 'center'
                   }}
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(modalWhatsApp.texto)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => setModalWhatsApp({ abierto: false, texto: '' })}
+                  onClick={() =>
+                    setModalWhatsApp({
+                      abierto: false,
+                      texto: ''
+                    })
+                  }
                 >
                   💬 WhatsApp
                 </a>
+
                 <button
                   type="button"
-                  onClick={() => setModalWhatsApp({ abierto: false, texto: '' })}
+                  onClick={() =>
+                    setModalWhatsApp({
+                      abierto: false,
+                      texto: ''
+                    })
+                  }
                   style={{
                     background: 'transparent',
                     border: '1px solid #355546',
@@ -1848,29 +1960,98 @@ export default function AdminPage() {
             ({fechaAgenda})
           </h2>
 
-          {/* Selector de calendario y saltos de 1 semana */}
-          <div style={{ background: '#07110d', padding: '12px', borderRadius: '10px', marginBottom: '16px', border: '1px solid #254536' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#afc0b8' }}>📅 Cambiar fecha o ver otras semanas:</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button 
+          <div
+            style={{
+              background: '#07110d',
+              padding: '12px',
+              borderRadius: '10px',
+              marginBottom: '16px',
+              border: '1px solid #254536'
+            }}
+          >
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '6px',
+                fontSize: '12px',
+                color: '#afc0b8'
+              }}
+            >
+              📅 Cambiar fecha o ver otras semanas:
+            </label>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                flexWrap: 'wrap'
+              }}
+            >
+              <button
                 type="button"
-                onClick={() => setFechaAgenda(sumarDias(fechaAgenda, -7))} 
-                style={{ padding: '8px 10px', background: '#183126', color: '#fff', border: '1px solid #355546', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                onClick={() =>
+                  setFechaAgenda(
+                    sumarDias(
+                      fechaAgenda,
+                      -7
+                    )
+                  )
+                }
+                style={{
+                  padding: '8px 10px',
+                  background: '#183126',
+                  color: '#fff',
+                  border: '1px solid #355546',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 'bold'
+                }}
               >
                 ◀ 1 Sem
               </button>
 
-              <input 
-                type="date" 
-                value={fechaAgenda} 
-                onChange={(e) => setFechaAgenda(e.target.value)}
-                style={{ flex: 1, padding: '8px', borderRadius: '8px', background: '#0d1d16', color: '#fff', border: '1px solid #355546', colorScheme: 'dark', fontSize: '13px' }}
+              <input
+                type="date"
+                value={fechaAgenda}
+                onChange={e =>
+                  setFechaAgenda(
+                    e.target.value
+                  )
+                }
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '8px',
+                  background: '#0d1d16',
+                  color: '#fff',
+                  border: '1px solid #355546',
+                  colorScheme: 'dark',
+                  fontSize: '13px'
+                }}
               />
 
-              <button 
+              <button
                 type="button"
-                onClick={() => setFechaAgenda(sumarDias(fechaAgenda, 7))} 
-                style={{ padding: '8px 10px', background: '#183126', color: '#fff', border: '1px solid #355546', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                onClick={() =>
+                  setFechaAgenda(
+                    sumarDias(
+                      fechaAgenda,
+                      7
+                    )
+                  )
+                }
+                style={{
+                  padding: '8px 10px',
+                  background: '#183126',
+                  color: '#fff',
+                  border: '1px solid #355546',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 'bold'
+                }}
               >
                 1 Sem ▶
               </button>
@@ -1884,7 +2065,6 @@ export default function AdminPage() {
                 marginTop: '14px'
               }}
             >
-
               <h3
                 style={{
                   fontSize: '14px',
@@ -1904,7 +2084,6 @@ export default function AdminPage() {
                   gap: '4px'
                 }}
               >
-
                 {HORARIOS.map(h => {
 
                   const fijo =
@@ -2024,9 +2203,13 @@ export default function AdminPage() {
                     key={c.id}
                     type="button"
                     className={`btnCanchaFiltro ${
-                      Number(canchaId) === Number(c.id) ? 'activo' : ''
+                      Number(canchaId) === Number(c.id)
+                        ? 'activo'
+                        : ''
                     }`}
-                    onClick={() => setCanchaId(c.id)}
+                    onClick={() =>
+                      setCanchaId(c.id)
+                    }
                   >
                     {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
                   </button>
@@ -2294,213 +2477,153 @@ export default function AdminPage() {
 
         </section>
 
+        {/* =========================================================
+            AGENDA - AHORA MUESTRA TODAS LAS RESERVAS PENDIENTES
+            SIN DEPENDER DE fechaAgenda
+        ========================================================== */}
+
         <section className="tarjeta">
 
-          <h2>
-            📅 Agenda (Pendientes de pago)
-          </h2>
-
-          <div className="agendaHeader">
-
-            <button
-              onClick={() =>
-                setFechaAgenda(
-                  sumarDias(
-                    fechaAgenda,
-                    -1
-                  )
-                )
-              }
-            >
-              ‹
-            </button>
-
-            <div className="fecha">
-              {fechaAgenda}
-            </div>
-
-            <button
-              onClick={() =>
-                setFechaAgenda(
-                  sumarDias(
-                    fechaAgenda,
-                    1
-                  )
-                )
-              }
-            >
-              ›
-            </button>
-
-          </div>
-
-          <div
-            className="campo"
+          <button
+            className="toggle"
+            onClick={() =>
+              setMostrarPendientesPago(
+                !mostrarPendientesPago
+              )
+            }
             style={{
-              marginBottom: '15px'
+              color: '#facc15',
+              fontSize: '17px'
             }}
           >
+            ⚡ Pendientes de pago (
+            {reservasPendientesGlobal.length}
+            )
 
-            <label>
-              Filtrar por Cancha en Agenda
-            </label>
+            {mostrarPendientesPago
+              ? ' ▲'
+              : ' ▼'}
+          </button>
 
-            <select
-              value={canchaAgendaFiltro}
-              onChange={e =>
-                setCanchaAgendaFiltro(
-                  e.target.value
-                )
-              }
-            >
+          {mostrarPendientesPago && (
+            <div>
 
-              <option value="todas">
-                Todas las canchas
-              </option>
+              {reservasPendientesGlobal.length === 0 ? (
+                <div className="vacio">
+                  ✅ No hay reservas pendientes de pago.
+                </div>
+              ) : (
+                [...reservasPendientesGlobal]
+                  .sort((a, b) => {
+                    const fechaA =
+                      `${a.fecha} ${a.hora_inicio || ''}`
 
-              {canchas.map(c => (
-                <option
-                  key={c.id}
-                  value={c.id}
-                >
-                  {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
-                </option>
-              ))}
+                    const fechaB =
+                      `${b.fecha} ${b.hora_inicio || ''}`
 
-            </select>
+                    return fechaA.localeCompare(
+                      fechaB
+                    )
+                  })
+                  .map(reserva => (
+                    <div
+                      className="reserva"
+                      key={reserva.id}
+                    >
 
-          </div>
+                      <strong>
+                        📅 {formatearFechaConDia(
+                          reserva.fecha
+                        )}
+                      </strong>
 
-          {cargando ? (
-            <div className="vacio">
-              Cargando...
-            </div>
-          ) : (
-            canchas
-              .filter(
-                c =>
-                  canchaAgendaFiltro ===
-                    'todas' ||
-                  Number(
-                    canchaAgendaFiltro
-                  ) === Number(c.id)
-              )
-              .map(cancha => {
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        🎾 {nombreCancha(
+                          reserva.cancha_id
+                        )}
 
-                const reservasPendientes =
-                  reservasPendientesGlobal.filter(
-                    r =>
-                      Number(
-                        r.cancha_id
-                      ) === Number(
-                        cancha.id
-                      )
-                  )
+                        {' · '}
 
-                return (
-                  <div
-                    className="agendaCancha"
-                    key={cancha.id}
-                  >
+                        ⏰ {formatearHora(
+                          reserva.hora_inicio
+                        )}
 
-                    <h3>
-                      🎾 {nombreCancha(
-                        cancha.id
-                      )} ({nombreCancha(cancha.id).toLowerCase()})
-                    </h3>
-
-                    {reservasPendientes.map(
-                      reserva => (
-                        <div
-                          className="reserva"
-                          key={reserva.id}
-                        >
-
-                          <strong>
-                            🟢 {formatearHora(reserva.hora_inicio)}
-
-                            {reserva.hora_fin
-                              ? ` - ${formatearHora(reserva.hora_fin)}`
-                              : ''} ({nombreCancha(reserva.cancha_id).toLowerCase()})
-                          </strong>
-
-                          <div className="info">
-                            Cliente:{' '}
-                            {reserva.cliente_nombre ||
-                              'Sin nombre'}
-                          </div>
-
-                          {reserva.cliente_telefono && (
-                            <div
-                              className="info"
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                flexWrap: 'wrap',
-                                gap: '4px'
-                              }}
-                            >
-
-                              📞{' '}
-                              {reserva.cliente_telefono}
-
-                              <a
-                                href={`https://wa.me/${telefonoWhatsAppArgentina(
-                                  reserva.cliente_telefono
-                                )}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btnWsp"
-                              >
-                                💬 WhatsApp
-                              </a>
-
-                            </div>
-                          )}
-
-                          <div className="acciones">
-
-                            <button
-                              className="btnPago pendiente"
-                              onClick={() =>
-                                cambiarPago(
-                                  reserva.id,
-                                  reserva.pago_confirmado
-                                )
-                              }
-                            >
-                              ⚡ Confirmar pago
-                            </button>
-
-                            <button
-                              className="btnEliminar"
-                              onClick={() =>
-                                cancelarReserva(
-                                  reserva.id
-                                )
-                              }
-                            >
-                              🗑️ Liberar turno
-                            </button>
-
-                          </div>
-
-                        </div>
-                      )
-                    )}
-
-                    {reservasPendientes.length ===
-                      0 && (
-                      <div className="vacio">
-                        No hay turnos pendientes
-                        de pago en esta cancha
-                        para este día.
+                        {reserva.hora_fin
+                          ? ` - ${formatearHora(
+                              reserva.hora_fin
+                            )}`
+                          : ''}
                       </div>
-                    )}
 
-                  </div>
-                )
-              })
+                      <div className="info">
+                        👤 Cliente:{' '}
+                        {reserva.cliente_nombre ||
+                          'Sin nombre'}
+                      </div>
+
+                      {reserva.cliente_telefono && (
+                        <div
+                          className="info"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '4px'
+                          }}
+                        >
+                          📞{' '}
+                          {reserva.cliente_telefono}
+
+                          <a
+                            href={`https://wa.me/${telefonoWhatsAppArgentina(
+                              reserva.cliente_telefono
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btnWsp"
+                          >
+                            💬 WhatsApp
+                          </a>
+                        </div>
+                      )}
+
+                      <div className="acciones">
+
+                        <button
+                          className="btnPago pendiente"
+                          onClick={() =>
+                            cambiarPago(
+                              reserva.id,
+                              reserva.pago_confirmado
+                            )
+                          }
+                        >
+                          ⚡ Confirmar pago
+                        </button>
+
+                        <button
+                          className="btnEliminar"
+                          onClick={() =>
+                            cancelarReserva(
+                              reserva.id
+                            )
+                          }
+                        >
+                          🗑️ Liberar turno
+                        </button>
+
+                      </div>
+
+                    </div>
+                  ))
+              )}
+
+            </div>
           )}
 
         </section>
@@ -2532,6 +2655,7 @@ export default function AdminPage() {
 
           {mostrarCasualesConfirmados && (
             <>
+
               <div
                 className="campo"
                 style={{
@@ -2544,18 +2668,28 @@ export default function AdminPage() {
                 </label>
 
                 <div className="botonesCanchasFiltro">
+
                   {canchas.map(c => (
                     <button
                       key={c.id}
                       type="button"
                       className={`btnCanchaFiltro ${
-                        Number(canchaCasualesConfirmadosFiltro) === Number(c.id) ? 'activo' : ''
+                        Number(
+                          canchaCasualesConfirmadosFiltro
+                        ) === Number(c.id)
+                          ? 'activo'
+                          : ''
                       }`}
-                      onClick={() => setCanchaCasualesConfirmadosFiltro(String(c.id))}
+                      onClick={() =>
+                        setCanchaCasualesConfirmadosFiltro(
+                          String(c.id)
+                        )
+                      }
                     >
                       {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
                     </button>
                   ))}
+
                 </div>
 
               </div>
@@ -2682,11 +2816,23 @@ export default function AdminPage() {
                         >
 
                           <strong>
-                            🟣 {formatearHora(reserva.hora_inicio)}
+                            🟣 {formatearHora(
+                              reserva.hora_inicio
+                            )}
 
                             {reserva.hora_fin
-                              ? ` - ${formatearHora(reserva.hora_fin)}`
-                              : ''} ({nombreCancha(reserva.cancha_id).toLowerCase()})
+                              ? ` - ${formatearHora(
+                                  reserva.hora_fin
+                                )}`
+                              : ''}
+
+                            {' ('}
+
+                            {nombreCancha(
+                              reserva.cancha_id
+                            ).toLowerCase()}
+
+                            {')'}
                           </strong>
 
                           <div
@@ -2794,6 +2940,7 @@ export default function AdminPage() {
                   </div>
                 )
               })()}
+
             </>
           )}
 
@@ -2822,6 +2969,7 @@ export default function AdminPage() {
 
           {mostrarFijosActivos && (
             <>
+
               <div
                 className="campo"
                 style={{
@@ -2834,18 +2982,26 @@ export default function AdminPage() {
                 </label>
 
                 <div className="botonesCanchasFiltro">
+
                   {canchas.map(c => (
                     <button
                       key={c.id}
                       type="button"
                       className={`btnCanchaFiltro ${
-                        Number(canchaFijosFiltro) === Number(c.id) ? 'activo' : ''
+                        Number(canchaFijosFiltro) === Number(c.id)
+                          ? 'activo'
+                          : ''
                       }`}
-                      onClick={() => setCanchaFijosFiltro(String(c.id))}
+                      onClick={() =>
+                        setCanchaFijosFiltro(
+                          String(c.id)
+                        )
+                      }
                     >
                       {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
                     </button>
                   ))}
+
                 </div>
 
               </div>
@@ -2965,23 +3121,44 @@ export default function AdminPage() {
 
                       {fijosFiltrados.map(
                         fijo => {
-                          const estaLiberadoHoy = estaTurnoFijoLiberadoEnFecha(fijo, fechaAgenda)
+
+                          const estaLiberadoHoy =
+                            estaTurnoFijoLiberadoEnFecha(
+                              fijo,
+                              fechaAgenda
+                            )
 
                           return (
                             <div
-                              className={estaLiberadoHoy ? "fijoLiberado" : "fijo"}
+                              className={
+                                estaLiberadoHoy
+                                  ? "fijoLiberado"
+                                  : "fijo"
+                              }
                               key={fijo.id}
                             >
 
                               <strong>
                                 ⏰{' '}
-                                {formatearHora(fijo.hora_inicio)}
+                                {formatearHora(
+                                  fijo.hora_inicio
+                                )}
 
                                 {' a '}
 
-                                {formatearHora(horaFinTurno(
-                                  fijo
-                                ))} ({nombreCancha(fijo.cancha_id).toLowerCase()})
+                                {formatearHora(
+                                  horaFinTurno(
+                                    fijo
+                                  )
+                                )}
+
+                                {' ('}
+
+                                {nombreCancha(
+                                  fijo.cancha_id
+                                ).toLowerCase()}
+
+                                {')'}
                               </strong>
 
                               <div
@@ -2997,7 +3174,7 @@ export default function AdminPage() {
                                 }}
                               >
 
-                               👤{' '}
+                                👤{' '}
 
                                 <strong>
                                   Cliente:
@@ -3054,8 +3231,14 @@ export default function AdminPage() {
                                 <button
                                   className="btnEliminar"
                                   style={{
-                                    borderColor: estaLiberadoHoy ? '#22c55e' : '#eab308',
-                                    color: estaLiberadoHoy ? '#22c55e' : '#eab308'
+                                    borderColor:
+                                      estaLiberadoHoy
+                                        ? '#22c55e'
+                                        : '#eab308',
+                                    color:
+                                      estaLiberadoHoy
+                                        ? '#22c55e'
+                                        : '#eab308'
                                   }}
                                   disabled={guardando}
                                   onClick={() =>
@@ -3065,7 +3248,9 @@ export default function AdminPage() {
                                     )
                                   }
                                 >
-                                  {estaLiberadoHoy ? `✅ Activar nuevamente (${fechaAgenda})` : `🔓 Liberar solo este día (${fechaAgenda})`}
+                                  {estaLiberadoHoy
+                                    ? `✅ Activar nuevamente (${fechaAgenda})`
+                                    : `🔓 Liberar solo este día (${fechaAgenda})`}
                                 </button>
 
                                 <button
@@ -3091,81 +3276,224 @@ export default function AdminPage() {
                 })()}
 
               </div>
+
             </>
           )}
 
         </section>
 
-        {/* Búsqueda exclusiva de turnos casuales confirmados en fechas futuras */}
-        <section className="tarjeta" style={{ border: '1px solid #38bdf8' }}>
+        <section
+          className="tarjeta"
+          style={{
+            border: '1px solid #38bdf8'
+          }}
+        >
+
           <button
             className="toggle"
-            onClick={() => setBuscarReservasAbierto(!buscarReservasAbierto)}
-            style={{ color: '#38bdf8', fontSize: '17px' }}
+            onClick={() =>
+              setBuscarReservasAbierto(
+                !buscarReservasAbierto
+              )
+            }
+            style={{
+              color: '#38bdf8',
+              fontSize: '17px'
+            }}
           >
             🔎 Buscar turnos casuales en próximas semanas
-            {buscarReservasAbierto ? ' ▲' : ' ▼'}
+
+            {buscarReservasAbierto
+              ? ' ▲'
+              : ' ▼'}
           </button>
 
           {buscarReservasAbierto && (
-            <div style={{ marginTop: '10px' }}>
-              <p style={{ fontSize: '12px', color: '#afc0b8', marginBottom: '12px' }}>
+            <div
+              style={{
+                marginTop: '10px'
+              }}
+            >
+
+              <p
+                style={{
+                  fontSize: '12px',
+                  color: '#afc0b8',
+                  marginBottom: '12px'
+                }}
+              >
                 Seleccioná una fecha futura para consultar únicamente los turnos casuales confirmados.
               </p>
 
-              <div className="campo" style={{ marginBottom: '14px' }}>
-                <label>Fecha a consultar</label>
-                <input 
-                  type="date" 
-                  value={fechaConsultaFutura} 
-                  onChange={(e) => setFechaConsultaFutura(e.target.value)}
-                  style={{ colorScheme: 'dark', fontSize: '13px' }}
+              <div
+                className="campo"
+                style={{
+                  marginBottom: '14px'
+                }}
+              >
+
+                <label>
+                  Fecha a consultar
+                </label>
+
+                <input
+                  type="date"
+                  value={fechaConsultaFutura}
+                  onChange={e =>
+                    setFechaConsultaFutura(
+                      e.target.value
+                    )
+                  }
+                  style={{
+                    colorScheme: 'dark',
+                    fontSize: '13px'
+                  }}
                 />
+
               </div>
 
               {cargandoConsultaFutura ? (
-                <div className="vacio">Buscando turnos casuales...</div>
+                <div className="vacio">
+                  Buscando turnos casuales...
+                </div>
               ) : (
                 <div>
-                  <h3 style={{ fontSize: '14px', color: '#e2e8f0', borderBottom: '1px solid #254536', paddingBottom: '6px', marginBottom: '10px' }}>
+
+                  <h3
+                    style={{
+                      fontSize: '14px',
+                      color: '#e2e8f0',
+                      borderBottom:
+                        '1px solid #254536',
+                      paddingBottom: '6px',
+                      marginBottom: '10px'
+                    }}
+                  >
                     📅 Turnos casuales para: {fechaConsultaFutura} ({formatearFechaConDia(fechaConsultaFutura)})
                   </h3>
 
                   {canchas.map(cancha => {
-                    // FILTRO ESTRICTO: Solo turnos casuales confirmados para esta cancha y fecha
-                    const casualesDia = reservasFuturasConsulta.filter(
-                      r => Number(r.cancha_id) === Number(cancha.id) && r.estado === 'confirmada'
-                    )
+
+                    const casualesDia =
+                      reservasFuturasConsulta.filter(
+                        r =>
+                          Number(
+                            r.cancha_id
+                          ) === Number(
+                            cancha.id
+                          ) &&
+                          r.estado ===
+                            'confirmada'
+                      )
 
                     return (
-                      <div key={cancha.id} style={{ marginBottom: '14px', background: '#07110d', padding: '10px', borderRadius: '10px', border: '1px solid #1e3a2f' }}>
-                        <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#d7ff45' }}>
+                      <div
+                        key={cancha.id}
+                        style={{
+                          marginBottom:
+                            '14px',
+                          background:
+                            '#07110d',
+                          padding: '10px',
+                          borderRadius:
+                            '10px',
+                          border:
+                            '1px solid #1e3a2f'
+                        }}
+                      >
+
+                        <h4
+                          style={{
+                            margin:
+                              '0 0 8px 0',
+                            fontSize:
+                              '13px',
+                            color:
+                              '#d7ff45'
+                          }}
+                        >
                           🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {casualesDia.length} turno{casualesDia.length !== 1 ? 's' : ''} casual{casualesDia.length !== 1 ? 'es' : ''}
                         </h4>
 
                         {casualesDia.length === 0 && (
-                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin turnos casuales para esta fecha.</div>
+                          <div
+                            className="vacio"
+                            style={{
+                              padding:
+                                '6px 0',
+                              fontSize:
+                                '12px'
+                            }}
+                          >
+                            Sin turnos casuales para esta fecha.
+                          </div>
                         )}
 
                         {casualesDia.map(r => (
-                          <div key={r.id} className="reservaConfirmada" style={{ padding: '10px', marginBottom: '8px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                          <div
+                            key={r.id}
+                            className="reservaConfirmada"
+                            style={{
+                              padding: '10px',
+                              marginBottom:
+                                '8px'
+                            }}
+                          >
+
+                            <div
+                              style={{
+                                fontSize:
+                                  '12px',
+                                fontWeight:
+                                  'bold'
+                              }}
+                            >
                               🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''}
                             </div>
-                            <div className="info" style={{ fontSize: '11px' }}>
-                              👤 <strong>{r.cliente_nombre || 'Sin nombre'}</strong> 
-                              {r.cliente_telefono ? ` · 📞 ${r.cliente_telefono}` : ''}
+
+                            <div
+                              className="info"
+                              style={{
+                                fontSize:
+                                  '11px'
+                              }}
+                            >
+                              👤{' '}
+                              <strong>
+                                {r.cliente_nombre ||
+                                  'Sin nombre'}
+                              </strong>
+
+                              {r.cliente_telefono
+                                ? ` · 📞 ${r.cliente_telefono}`
+                                : ''}
                             </div>
 
-                            {/* Botonera con WhatsApp, Poner Fijo y Eliminar al lado */}
-                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                            <div
+                              style={{
+                                display:
+                                  'flex',
+                                alignItems:
+                                  'center',
+                                flexWrap:
+                                  'wrap',
+                                gap: '6px',
+                                marginTop:
+                                  '8px'
+                              }}
+                            >
+
                               {r.cliente_telefono && (
                                 <a
-                                  href={`https://wa.me/${telefonoWhatsAppArgentina(r.cliente_telefono)}`}
+                                  href={`https://wa.me/${telefonoWhatsAppArgentina(
+                                    r.cliente_telefono
+                                  )}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btnWsp"
-                                  style={{ margin: 0 }}
+                                  style={{
+                                    margin: 0
+                                  }}
                                 >
                                   💬 WhatsApp
                                 </a>
@@ -3173,33 +3501,59 @@ export default function AdminPage() {
 
                               <button
                                 className="btnFijo"
-                                style={{ padding: '5px 8px', fontSize: '11px' }}
-                                disabled={guardando}
-                                onClick={() => pasarCasualAFijo(r)}
+                                style={{
+                                  padding:
+                                    '5px 8px',
+                                  fontSize:
+                                    '11px'
+                                }}
+                                disabled={
+                                  guardando
+                                }
+                                onClick={() =>
+                                  pasarCasualAFijo(
+                                    r
+                                  )
+                                }
                               >
                                 🟡 Poner fijo
                               </button>
 
                               <button
                                 className="btnEliminar"
-                                style={{ padding: '5px 8px', fontSize: '11px' }}
-                                onClick={() => cancelarReserva(r.id)}
+                                style={{
+                                  padding:
+                                    '5px 8px',
+                                  fontSize:
+                                    '11px'
+                                }}
+                                onClick={() =>
+                                  cancelarReserva(
+                                    r.id
+                                  )
+                                }
                               >
                                 🗑️ Eliminar
                               </button>
+
                             </div>
+
                           </div>
                         ))}
+
                       </div>
                     )
                   })}
+
                 </div>
               )}
+
             </div>
           )}
+
         </section>
 
       </div>
     </main>
   )
-        }
+}
