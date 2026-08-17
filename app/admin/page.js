@@ -607,7 +607,7 @@ export default function AdminPage() {
                 clienteNombre.trim(),
               cliente_telefono:
                 clienteTelefono.trim() || null,
-              estado: 'pendiente',
+              estado: 'pendiente_pago',
               pago_confirmado: false,
               tipo: 'normal'
             }
@@ -1034,8 +1034,8 @@ export default function AdminPage() {
 
           estado:
             nuevoPago
-              ? 'confirmado'
-              : 'pendiente'
+              ? 'confirmada'
+              : 'pendiente_pago'
         })
         .eq('id', id)
 
@@ -1062,13 +1062,13 @@ export default function AdminPage() {
   const reservasPendientesGlobal =
     reservasNormales.filter(
       r =>
-        r.estado === 'pendiente'
+        r.estado === 'pendiente_pago'
     )
 
   const reservasConfirmadasGlobal =
     reservasNormales.filter(
       r =>
-        r.estado === 'confirmado'
+        r.estado === 'confirmada'
     )
 
   const horariosDisponiblesCasual =
@@ -2251,7 +2251,7 @@ export default function AdminPage() {
 
                       if (
                         reserva.estado !==
-                        'confirmado'
+                        'confirmada'
                       ) {
                         return false
                       }
@@ -2712,4 +2712,5 @@ export default function AdminPage() {
       </div>
     </main>
   )
-                  }
+}
+
