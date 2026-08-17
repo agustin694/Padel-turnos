@@ -229,12 +229,12 @@ export default function AdminPage() {
     return horaDesdeMinutos(minutos)
   }
 
-  function esFijoEnHora(canchaIdBuscada, hora, fecha) {
+  function esFijoEnHora(canchaIdBuscado, hora, fecha) {
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return turnosFijos.some(t => {
-      if (Number(t.cancha_id) !== Number(canchaIdBuscada)) return false
+      if (Number(t.cancha_id) !== Number(canchaIdBuscado)) return false
       if (!turnoFijoCoincideConFecha(t, fecha)) return false
       const inicioFijo = minutosDesdeHora(t.hora_inicio)
       const duracion = t.duracion_minutos || 60
@@ -244,12 +244,12 @@ export default function AdminPage() {
     })
   }
 
-  function esCasualEnHora(canchaIdBuscada, hora, fecha) {
+  function esCasualEnHora(canchaIdBuscado, hora, fecha) {
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return reservasNormales.some(r => {
-      if (Number(r.cancha_id) !== Number(canchaIdBuscada)) return false
+      if (Number(r.cancha_id) !== Number(canchaIdBuscado)) return false
       if (r.fecha !== fecha) return false
       const inicioReserva = minutosDesdeHora(r.hora_inicio)
       const finReserva = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioReserva + 90
@@ -471,11 +471,6 @@ export default function AdminPage() {
   const horariosDisponiblesCasual = useMemo(
     () => horariosDisponiblesParaCrear(fechaCasual, duracionCasual),
     [canchaId, fechaCasual, duracionCasual, reservas, turnosFijos]
-  )
-
-  const horariosDisponiblesFijo = useMemo(
-    () => horariosDisponiblesParaCrear(fechaDesde, duracionFijo),
-    [canchaId, fechaDesde, duracionFijo, reservas, turnosFijos]
   )
 
   return (
@@ -1230,4 +1225,3 @@ export default function AdminPage() {
     </main>
   )
 }
-
