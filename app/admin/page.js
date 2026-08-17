@@ -92,7 +92,6 @@ function labelDuracion(minutos) {
 }
 
 export default function AdminPage() {
-
   const router = useRouter()
 
   const [canchas, setCanchas] = useState([])
@@ -107,6 +106,7 @@ export default function AdminPage() {
   const [canchaId, setCanchaId] = useState('')
 
   const [canchaAgendaFiltro, setCanchaAgendaFiltro] = useState('todas')
+
   const [canchaFijosFiltro, setCanchaFijosFiltro] = useState('')
   const [diaFijosFiltro, setDiaFijosFiltro] = useState(1)
 
@@ -124,10 +124,12 @@ export default function AdminPage() {
   const [clienteNombre, setClienteNombre] = useState('')
   const [clienteTelefono, setClienteTelefono] = useState('')
 
+  // TURNOS CASUALES
   const [fechaCasual, setFechaCasual] = useState(hoyLocal())
   const [horaCasual, setHoraCasual] = useState('')
   const [duracionCasual, setDuracionCasual] = useState(60)
 
+  // TURNOS FIJOS
   const [diasSeleccionados, setDiasSeleccionados] = useState([])
   const [horaFijo, setHoraFijo] = useState('18:00')
   const [duracionFijo, setDuracionFijo] = useState(60)
@@ -155,21 +157,16 @@ export default function AdminPage() {
     setCargando(true)
 
     try {
-
       const [
         { data: dataCanchas, error: errorCanchas },
         { data: dataReservas, error: errorReservas },
         { data: dataFijos, error: errorFijos }
       ] = await Promise.all([
-
         supabase
           .from('canchas')
           .select('*')
           .order('id'),
 
-        // IMPORTANTE:
-        // Ahora cargamos todas las reservas para poder
-        // mostrar los confirmados de cualquier fecha.
         supabase
           .from('reservas')
           .select('*, canchas(nombre)')
@@ -181,7 +178,6 @@ export default function AdminPage() {
           .select('*, canchas(nombre)')
           .eq('estado', 'activo')
           .order('hora_inicio')
-
       ])
 
       if (errorCanchas) throw errorCanchas
@@ -193,25 +189,28 @@ export default function AdminPage() {
       setTurnosFijos(dataFijos || [])
 
       if (!canchaId && dataCanchas?.length > 0) {
-        setCanchaId(dataCanchas[0].id)
+        setCanchaId(String(dataCanchas[0].id))
       }
 
       if (!canchaFijosFiltro && dataCanchas?.length > 0) {
         setCanchaFijosFiltro(String(dataCanchas[0].id))
       }
 
-      if (!canchaCasualesConfirmadosFiltro && dataCanchas?.length > 0) {
-        setCanchaCasualesConfirmadosFiltro(String(dataCanchas[0].id))
+      if (
+        !canchaCasualesConfirmadosFiltro &&
+        dataCanchas?.length > 0
+      ) {
+        setCanchaCasualesConfirmadosFiltro(
+          String(dataCanchas[0].id)
+        )
       }
-
     } catch (error) {
       console.error(error)
 
       alert(
         'No se pudieron cargar los datos:\n\n' +
-        (error?.message || 'Error desconocido')
+          (error?.message || 'Error desconocido')
       )
-
     } finally {
       setCargando(false)
     }
@@ -219,7 +218,6 @@ export default function AdminPage() {
 
   function cambiarDia(dia) {
     setDiasSeleccionados(prev => {
-
       if (prev.includes(dia)) {
         return prev.filter(d => d !== dia)
       }
@@ -229,7 +227,6 @@ export default function AdminPage() {
   }
 
   function cambiarDiaNavegacion(numeroDia) {
-
     const actual = new Date(`${fechaAgenda}T12:00:00`)
     const diaActual = actual.getDay()
 
@@ -245,7 +242,6 @@ export default function AdminPage() {
   }
 
   function turnoFijoCoincideConFecha(turno, fecha) {
-
     const fechaObj = new Date(`${fecha}T12:00:00`)
     const dia = fechaObj.getDay()
 
@@ -256,27 +252,19 @@ export default function AdminPage() {
   }
 
   function horaFinTurno(turno) {
-
     const duracionTurno = turno.duracion_minutos || 60
 
-    const minutos =
-      minutosDesdeHora(turno.hora_inicio) +
-      duracionTurno
-
-    return horaDesdeMinutos(minutos)
+    return horaDesdeMinutos(
+      minutosDesdeHora(turno.hora_inicio) + duracionTurno
+    )
   }
 
   function esFijoEnHora(canchaIdBuscado, hora, fecha) {
-
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return turnosFijos.some(t => {
-
-      if (
-        Number(t.cancha_id) !==
-        Number(canchaIdBuscado)
-      ) {
+      if (Number(t.cancha_id) !== Number(canchaIdBuscado)) {
         return false
       }
 
@@ -284,33 +272,20 @@ export default function AdminPage() {
         return false
       }
 
-      const inicioFijo =
-        minutosDesdeHora(t.hora_inicio)
+      const inicioFijo = minutosDesdeHora(t.hora_inicio)
+      const duracion = t.duracion_minutos || 60
+      const finFijo = inicioFijo + duracion
 
-      const duracion =
-        t.duracion_minutos || 60
-
-      const finFijo =
-        inicioFijo + duracion
-
-      return (
-        inicioSlot < finFijo &&
-        finSlot > inicioFijo
-      )
+      return inicioSlot < finFijo && finSlot > inicioFijo
     })
   }
 
   function esCasualEnHora(canchaIdBuscado, hora, fecha) {
-
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return reservasNormales.some(r => {
-
-      if (
-        Number(r.cancha_id) !==
-        Number(canchaIdBuscado)
-      ) {
+      if (Number(r.cancha_id) !== Number(canchaIdBuscado)) {
         return false
       }
 
@@ -318,18 +293,13 @@ export default function AdminPage() {
         return false
       }
 
-      const inicioReserva =
-        minutosDesdeHora(r.hora_inicio)
+      const inicioReserva = minutosDesdeHora(r.hora_inicio)
 
-      const finReserva =
-        r.hora_fin
-          ? minutosDesdeHora(r.hora_fin)
-          : inicioReserva + 90
+      const finReserva = r.hora_fin
+        ? minutosDesdeHora(r.hora_fin)
+        : inicioReserva + 90
 
-      return (
-        inicioSlot < finReserva &&
-        finSlot > inicioReserva
-      )
+      return inicioSlot < finReserva && finSlot > inicioReserva
     })
   }
 
@@ -339,76 +309,47 @@ export default function AdminPage() {
     horaInicioSel,
     duracionSel
   ) {
+    const inicioNuevo = minutosDesdeHora(horaInicioSel)
+    const finNuevo = inicioNuevo + duracionSel
 
-    const inicioNuevo =
-      minutosDesdeHora(horaInicioSel)
+    const chocaCasual = reservasNormales.some(r => {
+      if (Number(r.cancha_id) !== Number(canchaSel)) {
+        return false
+      }
 
-    const finNuevo =
-      inicioNuevo + duracionSel
+      if (r.fecha !== fechaSel) {
+        return false
+      }
 
-    const chocaCasual =
-      reservasNormales.some(r => {
+      const inicioR = minutosDesdeHora(r.hora_inicio)
 
-        if (
-          Number(r.cancha_id) !==
-          Number(canchaSel)
-        ) {
-          return false
-        }
+      const finR = r.hora_fin
+        ? minutosDesdeHora(r.hora_fin)
+        : inicioR + 90
 
-        if (r.fecha !== fechaSel) {
-          return false
-        }
-
-        const inicioR =
-          minutosDesdeHora(r.hora_inicio)
-
-        const finR =
-          r.hora_fin
-            ? minutosDesdeHora(r.hora_fin)
-            : inicioR + 90
-
-        return (
-          inicioNuevo < finR &&
-          finNuevo > inicioR
-        )
-      })
+      return inicioNuevo < finR && finNuevo > inicioR
+    })
 
     if (chocaCasual) {
       return true
     }
 
-    const chocaFijo =
-      turnosFijos.some(t => {
+    const chocaFijo = turnosFijos.some(t => {
+      if (Number(t.cancha_id) !== Number(canchaSel)) {
+        return false
+      }
 
-        if (
-          Number(t.cancha_id) !==
-          Number(canchaSel)
-        ) {
-          return false
-        }
+      if (!turnoFijoCoincideConFecha(t, fechaSel)) {
+        return false
+      }
 
-        if (
-          !turnoFijoCoincideConFecha(
-            t,
-            fechaSel
-          )
-        ) {
-          return false
-        }
+      const inicioF = minutosDesdeHora(t.hora_inicio)
 
-        const inicioF =
-          minutosDesdeHora(t.hora_inicio)
+      const finF =
+        inicioF + (t.duracion_minutos || 60)
 
-        const finF =
-          inicioF +
-          (t.duracion_minutos || 60)
-
-        return (
-          inicioNuevo < finF &&
-          finNuevo > inicioF
-        )
-      })
+      return inicioNuevo < finF && finNuevo > inicioF
+    })
 
     return chocaFijo
   }
@@ -417,13 +358,11 @@ export default function AdminPage() {
     fechaSel,
     duracionSel
   ) {
-
     if (!canchaId || !fechaSel) {
       return []
     }
 
     return HORARIOS.filter(hora => {
-
       return !haySolapamiento(
         canchaId,
         fechaSel,
@@ -433,8 +372,11 @@ export default function AdminPage() {
     })
   }
 
-  async function crearTurnoCasual(e) {
+  // =========================================================
+  // CREAR TURNO CASUAL
+  // =========================================================
 
+  async function crearTurnoCasual(e) {
     e.preventDefault()
 
     if (!canchaId) {
@@ -468,39 +410,40 @@ export default function AdminPage() {
       alert(
         '⚠️ El horario seleccionado ya está ocupado. Elegí otro disponible.'
       )
-
       return
     }
 
     setGuardando(true)
 
     try {
+      const horaFin = sumarMinutos(
+        horaCasual,
+        duracionCasual
+      )
 
-      const horaFin =
-        sumarMinutos(
-          horaCasual,
-          duracionCasual
-        )
+      const { error } = await supabase
+        .from('reservas')
+        .insert([
+          {
+            cancha_id: canchaId,
+            fecha: fechaCasual,
+            hora_inicio: horaCasual,
+            hora_fin: horaFin,
 
-      const { error } =
-        await supabase
-          .from('reservas')
-          .insert([
-            {
-              cancha_id: canchaId,
-              fecha: fechaCasual,
-              hora_inicio: horaCasual,
-              hora_fin: horaFin,
-              cliente_nombre:
-                clienteNombre.trim(),
-              cliente_telefono:
-                clienteTelefono.trim() ||
-                null,
-              estado: 'confirmada',
-              pago_confirmado: false,
-              tipo: 'normal'
-            }
-          ])
+            cliente_nombre:
+              clienteNombre.trim(),
+
+            cliente_telefono:
+              clienteTelefono.trim() || null,
+
+            // IMPORTANTE:
+            // Los nuevos turnos casuales
+            // comienzan como pendientes.
+            estado: 'pendiente',
+
+            tipo: 'normal'
+          }
+        ])
 
       if (error) throw error
 
@@ -513,23 +456,23 @@ export default function AdminPage() {
       setHoraCasual('')
 
       await cargarDatos()
-
     } catch (error) {
-
       console.error(error)
 
       alert(
         'No se pudo crear el turno:\n\n' +
-        error.message
+          error.message
       )
-
     } finally {
       setGuardando(false)
     }
   }
 
-  async function crearTurnoFijo(e) {
+  // =========================================================
+  // CREAR TURNO FIJO
+  // =========================================================
 
+  async function crearTurnoFijo(e) {
     e.preventDefault()
 
     if (!canchaId) {
@@ -546,35 +489,37 @@ export default function AdminPage() {
       alert(
         'Seleccioná al menos un día de la semana.'
       )
-
       return
     }
 
     setGuardando(true)
 
     try {
+      const { error } = await supabase
+        .from('turnos_fijos')
+        .insert([
+          {
+            cancha_id: canchaId,
+            cliente_nombre:
+              clienteNombre.trim(),
 
-      const { error } =
-        await supabase
-          .from('turnos_fijos')
-          .insert([
-            {
-              cancha_id: canchaId,
-              cliente_nombre:
-                clienteNombre.trim(),
-              cliente_telefono:
-                clienteTelefono.trim() ||
-                null,
-              fecha_desde: hoyLocal(),
-              fecha_hasta: '2099-12-31',
-              dias_semana:
-                diasSeleccionados,
-              hora_inicio: horaFijo,
-              duracion_minutos:
-                duracionFijo,
-              estado: 'activo'
-            }
-          ])
+            cliente_telefono:
+              clienteTelefono.trim() || null,
+
+            fecha_desde: hoyLocal(),
+            fecha_hasta: '2099-12-31',
+
+            dias_semana:
+              diasSeleccionados,
+
+            hora_inicio: horaFijo,
+
+            duracion_minutos:
+              duracionFijo,
+
+            estado: 'activo'
+          }
+        ])
 
       if (error) throw error
 
@@ -587,126 +532,124 @@ export default function AdminPage() {
       setDiasSeleccionados([])
 
       await cargarDatos()
-
     } catch (error) {
-
       console.error(error)
 
       alert(
         'No se pudo crear el turno fijo:\n\n' +
-        error.message
+          error.message
       )
-
     } finally {
       setGuardando(false)
     }
   }
 
-  async function eliminarTurnoFijo(id) {
-
-    const confirmar =
-      confirm(
-        '¿Querés eliminar este turno fijo completo?'
-      )
-
-    if (!confirmar) return
-
-    const { error } =
-      await supabase
-        .from('turnos_fijos')
-        .delete()
-        .eq('id', id)
-
-    if (error) {
-
-      alert(
-        'No se pudo eliminar:\n\n' +
-        error.message
-      )
-
-      return
-    }
-
-    alert('Turno fijo eliminado.')
-
-    await cargarDatos()
-  }
-
-  async function cancelarReserva(id) {
-
-    const confirmar =
-      confirm(
-        '¿Seguro que querés liberar este turno?'
-      )
-
-    if (!confirmar) return
-
-    const { error } =
-      await supabase
-        .from('reservas')
-        .delete()
-        .eq('id', id)
-
-    if (error) {
-
-      alert(
-        'No se pudo liberar:\n\n' +
-        error.message
-      )
-
-      return
-    }
-
-    await cargarDatos()
-  }
+  // =========================================================
+  // CONFIRMAR / DESHACER PAGO
+  // =========================================================
 
   async function cambiarPago(
     id,
     estadoActual
   ) {
+    const nuevoEstado =
+      estadoActual === 'confirmado'
+        ? 'pendiente'
+        : 'confirmado'
 
-    const nuevoEstado = !estadoActual
-
-    const { error } =
-      await supabase
-        .from('reservas')
-        .update({
-          pago_confirmado:
-            nuevoEstado
-        })
-        .eq('id', id)
+    const { error } = await supabase
+      .from('reservas')
+      .update({
+        estado: nuevoEstado
+      })
+      .eq('id', id)
 
     if (error) {
-
       alert(
-        'No se pudo actualizar el pago:\n\n' +
-        error.message
+        'No se pudo actualizar el estado:\n\n' +
+          error.message
       )
-
       return
     }
 
     await cargarDatos()
   }
 
-  const reservasNormales =
-    reservas.filter(
-      r => r.estado !== 'bloqueado'
+  // =========================================================
+  // ELIMINAR TURNO FIJO
+  // =========================================================
+
+  async function eliminarTurnoFijo(id) {
+    const confirmar = confirm(
+      '¿Querés eliminar este turno fijo completo?'
     )
 
+    if (!confirmar) return
+
+    const { error } = await supabase
+      .from('turnos_fijos')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert(
+        'No se pudo eliminar:\n\n' +
+          error.message
+      )
+      return
+    }
+
+    await cargarDatos()
+  }
+
+  // =========================================================
+  // LIBERAR RESERVA
+  // =========================================================
+
+  async function cancelarReserva(id) {
+    const confirmar = confirm(
+      '¿Seguro que querés liberar este turno?'
+    )
+
+    if (!confirmar) return
+
+    const { error } = await supabase
+      .from('reservas')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert(
+        'No se pudo liberar:\n\n' +
+          error.message
+      )
+      return
+    }
+
+    await cargarDatos()
+  }
+
+  // =========================================================
+  // DATOS FILTRADOS
+  // =========================================================
+
+  const reservasNormales = reservas.filter(
+    r => r.estado !== 'bloqueado'
+  )
+
+  // PENDIENTES DE PAGO
   const reservasPendientesPago =
     reservasNormales.filter(
       r =>
         r.fecha === fechaAgenda &&
-        !r.pago_confirmado
+        r.estado === 'pendiente'
     )
 
-  const reservasCasualesPagadas =
+  // CASUALES CONFIRMADOS
+  const reservasConfirmadas =
     reservasNormales.filter(
       r =>
-        r.pago_confirmado &&
-        r.cancha_id &&
-        r.fecha
+        r.estado === 'confirmado'
     )
 
   const horariosDisponiblesCasual =
@@ -943,7 +886,7 @@ export default function AdminPage() {
         .info {
           color: #a9bbb2;
           font-size: 12px;
-          margin-top: 4px;
+          margin-top: 5px;
         }
 
         .acciones {
@@ -979,7 +922,7 @@ export default function AdminPage() {
           color: #07110d;
           border: 0;
           border-radius: 6px;
-          padding: 3px 8px;
+          padding: 4px 8px;
           font-size: 11px;
           font-weight: bold;
           cursor: pointer;
@@ -1026,7 +969,13 @@ export default function AdminPage() {
           color: #22c55e;
           font-weight: bold;
           font-size: 12px;
-          margin-top: 6px;
+          margin-top: 8px;
+        }
+
+        .separador {
+          height: 1px;
+          background: #274536;
+          margin: 15px 0;
         }
 
         @media(max-width: 520px) {
@@ -1047,7 +996,12 @@ export default function AdminPage() {
 
       `}</style>
 
+
       <div className="contenedor">
+
+        {/* ================================================= */}
+        {/* TITULO */}
+        {/* ================================================= */}
 
         <div className="tituloPrincipal">
 
@@ -1069,7 +1023,9 @@ export default function AdminPage() {
         </div>
 
 
-        {/* NAVEGACIÓN */}
+        {/* ================================================= */}
+        {/* NAVEGACION SEMANAL */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
@@ -1097,8 +1053,7 @@ export default function AdminPage() {
                   )
                 }
                 style={{
-                  background:
-                    '#183126',
+                  background: '#183126',
                   color: 'white',
                   border:
                     '1px solid #355546',
@@ -1119,13 +1074,14 @@ export default function AdminPage() {
         </section>
 
 
-        {/* VISTA RÁPIDA */}
+        {/* ================================================= */}
+        {/* VISTA RAPIDA */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
           <h2>
             👁️ Vista rápida de horarios
-            ({fechaAgenda})
           </h2>
 
           {canchas.map(cancha => (
@@ -1203,7 +1159,6 @@ export default function AdminPage() {
                     </div>
 
                   )
-
                 })}
 
               </div>
@@ -1222,25 +1177,17 @@ export default function AdminPage() {
               fontSize: '11px'
             }}
           >
-
-            <span>
-              🔵 Fijo
-            </span>
-
-            <span>
-              🟣 Casual
-            </span>
-
-            <span>
-              🟢 Libre
-            </span>
-
+            <span>🔵 Fijo</span>
+            <span>🟣 Casual</span>
+            <span>🟢 Libre</span>
           </div>
 
         </section>
 
 
+        {/* ================================================= */}
         {/* CREAR TURNO */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
@@ -1279,6 +1226,7 @@ export default function AdminPage() {
             </button>
 
           </div>
+
 
           <form
             onSubmit={
@@ -1343,6 +1291,7 @@ export default function AdminPage() {
 
               </div>
 
+
               <div className="campo">
 
                 <label>
@@ -1387,6 +1336,7 @@ export default function AdminPage() {
                     />
 
                   </div>
+
 
                   <div className="campo">
 
@@ -1549,6 +1499,7 @@ export default function AdminPage() {
 
                   </div>
 
+
                   <div className="campo">
 
                     <label>
@@ -1610,14 +1561,16 @@ export default function AdminPage() {
         </section>
 
 
-        {/* AGENDA */}
+        {/* ================================================= */}
+        {/* AGENDA - SOLO PENDIENTES */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
           <h2>
-            📅 Agenda
-            (Pendientes de pago)
+            📅 Agenda — Pendientes de pago
           </h2>
+
 
           <div className="agendaHeader">
 
@@ -1634,9 +1587,11 @@ export default function AdminPage() {
               ‹
             </button>
 
+
             <div className="fecha">
               {fechaAgenda}
             </div>
+
 
             <button
               onClick={() =>
@@ -1732,13 +1687,13 @@ export default function AdminPage() {
                       )}
                     </h3>
 
+
                     {pendientes.length ===
                     0 ? (
 
                       <div className="vacio">
                         No hay turnos pendientes
-                        de pago en esta cancha
-                        para este día.
+                        de pago para este día.
                       </div>
 
                     ) : (
@@ -1752,23 +1707,35 @@ export default function AdminPage() {
                           >
 
                             <strong>
-                              🟢 {reserva.hora_inicio}
+                              🟠 {reserva.hora_inicio}
+
                               {reserva.hora_fin
                                 ? ` - ${reserva.hora_fin}`
                                 : ''}
                             </strong>
 
+
                             <div className="info">
 
-                              👤 Cliente:{' '}
+                              👤{' '}
+                              <strong>
+                                Cliente:
+                              </strong>{' '}
+
                               {reserva.cliente_nombre ||
                                 'Sin nombre'}
 
-                              {reserva.cliente_telefono
-                                ? ` · 📞 ${reserva.cliente_telefono}`
-                                : ''}
+                            </div>
+
+
+                            <div className="info">
+
+                              📞{' '}
+                              {reserva.cliente_telefono ||
+                                'Sin teléfono'}
 
                             </div>
+
 
                             <div className="acciones">
 
@@ -1777,12 +1744,13 @@ export default function AdminPage() {
                                 onClick={() =>
                                   cambiarPago(
                                     reserva.id,
-                                    reserva.pago_confirmado
+                                    reserva.estado
                                   )
                                 }
                               >
-                                ⚡ Confirmar pago
+                                ✅ Confirmar pago
                               </button>
+
 
                               <button
                                 className="btnEliminar"
@@ -1807,7 +1775,6 @@ export default function AdminPage() {
                   </div>
 
                 )
-
               })
 
           )}
@@ -1815,7 +1782,10 @@ export default function AdminPage() {
         </section>
 
 
+        {/* ================================================= */}
         {/* CASUALES CONFIRMADOS */}
+        {/* MISMA INTERFAZ GENERAL QUE FIJOS */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
@@ -1828,8 +1798,8 @@ export default function AdminPage() {
             }
           >
 
-            🟢 Turnos casuales
-            confirmados / pagados
+            🟢 Turnos casuales confirmados
+            ({reservasConfirmadas.length})
 
             {mostrarCasualesConfirmados
               ? ' ▲'
@@ -1898,16 +1868,14 @@ export default function AdminPage() {
 
               {(() => {
 
-                const confirmados =
-                  reservasCasualesPagadas.filter(
-                    reserva =>
-                      Number(
-                        reserva.cancha_id
-                      ) ===
-                      Number(
-                        canchaCasualesConfirmadosFiltro
-                      ) &&
-                      reserva.fecha ===
+                const confirmadosFiltrados =
+                  reservasConfirmadas.filter(
+                    r =>
+                      Number(r.cancha_id) ===
+                        Number(
+                          canchaCasualesConfirmadosFiltro
+                        ) &&
+                      r.fecha ===
                         fechaCasualesConfirmadosFiltro
                   )
 
@@ -1933,25 +1901,25 @@ export default function AdminPage() {
 
                       {' ('}
 
-                      {confirmados.length}
+                      {confirmadosFiltrados.length}
 
                       {')'}
 
                     </h3>
 
 
-                    {confirmados.length ===
+                    {confirmadosFiltrados.length ===
                     0 ? (
 
                       <div className="vacio">
                         No hay turnos casuales
-                        pagados para esta fecha
-                        en esta cancha.
+                        confirmados para esta
+                        fecha y cancha.
                       </div>
 
                     ) : (
 
-                      confirmados.map(
+                      confirmadosFiltrados.map(
                         reserva => (
 
                           <div
@@ -1988,6 +1956,7 @@ export default function AdminPage() {
                               {reserva.cliente_telefono ||
                                 'Sin teléfono'}
 
+
                               {reserva.cliente_telefono && (
 
                                 <a
@@ -2009,7 +1978,7 @@ export default function AdminPage() {
 
                             <div className="estadoPagado">
 
-                              ✅ Pagado y confirmado
+                              ✅ Pago confirmado
 
                             </div>
 
@@ -2021,11 +1990,11 @@ export default function AdminPage() {
                                 onClick={() =>
                                   cambiarPago(
                                     reserva.id,
-                                    reserva.pago_confirmado
+                                    reserva.estado
                                   )
                                 }
                               >
-                                🔄 Deshacer pago
+                                🔄 Volver a pendiente
                               </button>
 
 
@@ -2062,7 +2031,9 @@ export default function AdminPage() {
         </section>
 
 
+        {/* ================================================= */}
         {/* TURNOS FIJOS */}
+        {/* ================================================= */}
 
         <section className="tarjeta">
 
@@ -2096,7 +2067,9 @@ export default function AdminPage() {
                 </label>
 
                 <select
-                  value={canchaFijosFiltro}
+                  value={
+                    canchaFijosFiltro
+                  }
                   onChange={e =>
                     setCanchaFijosFiltro(
                       e.target.value
@@ -2281,6 +2254,7 @@ export default function AdminPage() {
                               {fijo.cliente_telefono ||
                                 'Sin teléfono'}
 
+
                               {fijo.cliente_telefono && (
 
                                 <a
@@ -2338,4 +2312,4 @@ export default function AdminPage() {
 
     </main>
   )
-                  }
+                    }
