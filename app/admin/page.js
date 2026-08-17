@@ -262,9 +262,68 @@ export default function AdminPage() {
     setFechaAgenda(actual.toISOString().split('T')[0])
   }
 
-  function esFijo(hora, fecha) {
-    const d = new Date(`${fecha}T12:00:00`).getDay()
-    return turnosFijos.some(t => t.hora_inicio === hora && turnoFijoCoincideConFecha(t, fecha))
+  function turnoFijoCoincideConFecha(turno, fecha) {
+
+    if (
+      fecha < turno.fecha_desde ||
+      fecha > turno.fecha_hasta
+    ) {
+      return false
+    }
+
+    const fechaObj = new Date(
+      `${fecha}T12:00:00`
+    )
+
+    const dia =
+      fechaObj.getDay()
+
+    return (
+      Array.isArray(turno.dias_semana) &&
+      turno.dias_semana.includes(dia)
+    )
+  }
+
+  function horaFinTurno(turno) {
+
+    const duracionTurno =
+      turno.duracion_minutos || 60
+
+    const minutos =
+      minutosDesdeHora(
+        turno.hora_inicio
+      ) + duracionTurno
+
+    return horaDesdeMinutos(minutos)
+  }
+
+  function esFijoEnHora(canchaIdBuscada, hora, fecha) {
+    const inicioSlot = minutosDesdeHora(hora)
+    const finSlot = inicioSlot + 30
+
+    return turnosFijos.some(t => {
+      if (Number(t.cancha_id) !== Number(canchaIdBuscada)) return false
+      if (!turnoFijoCoincideConFecha(t, fecha)) return false
+      const inicioFijo = minutosDesdeHora(t.hora_inicio)
+      const duracion = t.duracion_minutos || 60
+      const finFijo = inicioFijo + duracion
+
+      return inicioSlot < finFijo && finSlot > inicioFijo
+    })
+  }
+
+  function esCasualEnHora(canchaIdBuscada, hora, fecha) {
+    const inicioSlot = minutosDesdeHora(hora)
+    const finSlot = inicioSlot + 30
+
+    return reservasNormales.some(r => {
+      if (Number(r.cancha_id) !== Number(canchaIdBuscada)) return false
+      if (r.fecha !== fecha) return false
+      const inicioReserva = minutosDesdeHora(r.hora_inicio)
+      const finReserva = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioReserva + 90
+
+      return inicioSlot < finReserva && finSlot > inicioReserva
+    })
   }
 
   async function crearTurnoCasual(e) {
@@ -528,41 +587,6 @@ export default function AdminPage() {
     }
 
     cargarDatos()
-  }
-
-  function turnoFijoCoincideConFecha(turno, fecha) {
-
-    if (
-      fecha < turno.fecha_desde ||
-      fecha > turno.fecha_hasta
-    ) {
-      return false
-    }
-
-    const fechaObj = new Date(
-      `${fecha}T12:00:00`
-    )
-
-    const dia =
-      fechaObj.getDay()
-
-    return (
-      Array.isArray(turno.dias_semana) &&
-      turno.dias_semana.includes(dia)
-    )
-  }
-
-  function horaFinTurno(turno) {
-
-    const duracionTurno =
-      turno.duracion_minutos || 60
-
-    const minutos =
-      minutosDesdeHora(
-        turno.hora_inicio
-      ) + duracionTurno
-
-    return horaDesdeMinutos(minutos)
   }
 
   function hayReservaEnSemana(canchaIdBuscada, fecha, hora) {
@@ -1079,33 +1103,40 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* VISTA RÁPIDA DE COLORES */}
+        {/* VISTA RÁPIDA DE COLORES SEPARADA POR CANCHA */}
         <section className="tarjeta">
           <h2>👁️ Vista rápida de horarios ({fechaAgenda})</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', marginTop: '10px' }}>
-            {HORARIOS.map(h => {
-              const fijo = esFijo(h, fechaAgenda)
-              const casual = reservasNormales.some(r => r.hora_inicio === h)
-              const colorBg = fijo ? '#3b82f6' : casual ? '#8b5cf6' : '#22c55e'
-              return (
-                <div
-                  key={h}
-                  style={{
-                    background: colorBg,
-                    textAlign: 'center',
-                    fontSize: '10px',
-                    padding: '5px 2px',
-                    borderRadius: '4px',
-                    color: '#fff',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  {h}
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '12px', fontSize: '11px' }}>
+          
+          {canchas.map(cancha => (
+            <div key={cancha.id} style={{ marginTop: '14px' }}>
+              <h3 style={{ fontSize: '14px', margin: '0 0 6px 0', color: '#d7ff45' }}>🎾 {nombreCancha(cancha.id)}</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
+                {HORARIOS.map(h => {
+                  const fijo = esFijoEnHora(cancha.id, h, fechaAgenda)
+                  const casual = esCasualEnHora(cancha.id, h, fechaAgenda)
+                  const colorBg = fijo ? '#3b82f6' : casual ? '#8b5cf6' : '#22c55e'
+                  return (
+                    <div
+                      key={h}
+                      style={{
+                        background: colorBg,
+                        textAlign: 'center',
+                        fontSize: '10px',
+                        padding: '5px 2px',
+                        borderRadius: '4px',
+                        color: '#fff',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {h}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '15px', fontSize: '11px' }}>
             <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px', marginRight: '4px' }}></span> Fijo</span>
             <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#8b5cf6', borderRadius: '2px', marginRight: '4px' }}></span> Casual</span>
             <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px', marginRight: '4px' }}></span> Libre</span>
