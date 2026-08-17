@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
 const DIAS = [
-  { numero: 0, nombre: 'Domingo' },
-  { numero: 1, nombre: 'Lunes' },
-  { numero: 2, nombre: 'Martes' },
-  { numero: 3, nombre: 'Miércoles' },
-  { numero: 4, nombre: 'Jueves' },
-  { numero: 5, nombre: 'Viernes' },
-  { numero: 6, nombre: 'Sábado' }
+  { numero: 1, nombre: 'Lun' },
+  { numero: 2, nombre: 'Mar' },
+  { numero: 3, nombre: 'Mié' },
+  { numero: 4, nombre: 'Jue' },
+  { numero: 5, nombre: 'Vie' },
+  { numero: 6, nombre: 'Sáb' },
+  { numero: 0, nombre: 'Dom' }
 ]
 
 const NOMBRES_DIAS_SEMANA = [
@@ -252,6 +252,19 @@ export default function AdminPage() {
       return [...prev, dia].sort()
 
     })
+  }
+
+  function cambiarDiaNavegacion(numeroDia) {
+    const actual = new Date(`${fechaAgenda}T12:00:00`)
+    const diaActual = actual.getDay()
+    const diff = numeroDia - diaActual
+    actual.setDate(actual.getDate() + diff)
+    setFechaAgenda(actual.toISOString().split('T')[0])
+  }
+
+  function esFijo(hora, fecha) {
+    const d = new Date(`${fecha}T12:00:00`).getDay()
+    return turnosFijos.some(t => t.hora_inicio === hora && turnoFijoCoincideConFecha(t, fecha))
   }
 
   async function crearTurnoCasual(e) {
@@ -750,18 +763,20 @@ export default function AdminPage() {
 
         .dias {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 8px;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 6px;
           margin-top: 8px;
         }
 
         .dia {
-          padding: 11px;
-          border-radius: 10px;
+          padding: 10px 4px;
+          border-radius: 8px;
           border: 1px solid #355546;
           background: #07110d;
           color: #a9bbb2;
           cursor: pointer;
+          font-size: 12px;
+          text-align: center;
         }
 
         .dia.activo {
@@ -907,12 +922,6 @@ export default function AdminPage() {
           text-align: center;
         }
 
-        .separador {
-          height: 1px;
-          background: #294638;
-          margin: 22px 0;
-        }
-
         .toggle {
           width: 100%;
           text-align: left;
@@ -1006,6 +1015,10 @@ export default function AdminPage() {
             padding: 12px;
           }
 
+          .dias {
+            grid-template-columns: repeat(4, 1fr);
+          }
+
         }
 
       `}</style>
@@ -1015,7 +1028,7 @@ export default function AdminPage() {
         <div className="tituloPrincipal">
 
           <h1>
-            🔒 Panel Admin
+            🔒 Panel Admin: Quinta Padel
           </h1>
 
           <p>
@@ -1030,6 +1043,74 @@ export default function AdminPage() {
           </button>
 
         </div>
+
+        {/* NAVEGADOR RÁPIDO DE DÍAS (LUNES A DOMINGO) */}
+        <section className="tarjeta">
+          <label style={{ marginBottom: '8px' }}>Navegación semanal rápida</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+            {[
+              { numero: 1, nombre: 'Lun' },
+              { numero: 2, nombre: 'Mar' },
+              { numero: 3, nombre: 'Mié' },
+              { numero: 4, nombre: 'Jue' },
+              { numero: 5, nombre: 'Vie' },
+              { numero: 6, nombre: 'Sáb' },
+              { numero: 0, nombre: 'Dom' }
+            ].map(d => (
+              <button
+                key={d.numero}
+                type="button"
+                onClick={() => cambiarDiaNavegacion(d.numero)}
+                style={{
+                  background: '#183126',
+                  color: 'white',
+                  border: '1px solid #355546',
+                  padding: '8px 2px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  textAlign: 'center'
+                }}
+              >
+                {d.nombre}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* VISTA RÁPIDA DE COLORES */}
+        <section className="tarjeta">
+          <h2>👁️ Vista rápida de horarios ({fechaAgenda})</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', marginTop: '10px' }}>
+            {HORARIOS.map(h => {
+              const fijo = esFijo(h, fechaAgenda)
+              const casual = reservasNormales.some(r => r.hora_inicio === h)
+              const colorBg = fijo ? '#3b82f6' : casual ? '#8b5cf6' : '#22c55e'
+              return (
+                <div
+                  key={h}
+                  style={{
+                    background: colorBg,
+                    textAlign: 'center',
+                    fontSize: '10px',
+                    padding: '5px 2px',
+                    borderRadius: '4px',
+                    color: '#fff',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {h}
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '12px', fontSize: '11px' }}>
+            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px', marginRight: '4px' }}></span> Fijo</span>
+            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#8b5cf6', borderRadius: '2px', marginRight: '4px' }}></span> Casual</span>
+            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px', marginRight: '4px' }}></span> Libre</span>
+          </div>
+        </section>
 
         {/* CREAR TURNO */}
 
