@@ -112,6 +112,7 @@ export default function Home() {
 
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
+  const [turnosFijos, setTurnosFijos] = useState([])
 
   const [cargando, setCargando] = useState(true)
   const [cargandoReservas, setCargandoReservas] = useState(false)
@@ -188,17 +189,17 @@ export default function Home() {
 
     if (!fecha) return
 
-    cargarReservasDelDia()
+    cargarDatosDelDia()
 
   }, [fecha])
 
-  async function cargarReservasDelDia() {
+  async function cargarDatosDelDia() {
 
     setCargandoReservas(true)
 
     try {
-
-      const { data, error } = await supabase
+      // 1. Cargar reservas confirmadas del día
+      const { data: resData, error: resError } = await supabase
         .from('reservas')
         .select(
           'id, cancha_id, fecha, hora_inicio, hora_fin, estado'
@@ -206,17 +207,23 @@ export default function Home() {
         .eq('fecha', fecha)
         .eq('estado', 'confirmada')
 
-      if (error) {
-        throw error
-      }
+      if (resError) throw resError
+      setReservas(resData || [])
 
-      setReservas(data || [])
+      // 2. Cargar turnos fijos activos
+      const { data: fijosData, error: fijosError } = await supabase
+        .from('turnos_fijos')
+        .select('*')
+        .eq('estado', 'activo')
+
+      if (fijosError) throw fijosError
+      setTurnosFijos(fijosData || [])
 
     } catch (err) {
 
       console.error(err)
-
       setReservas([])
+      setTurnosFijos([])
 
     } finally {
 
@@ -281,7 +288,8 @@ export default function Home() {
       return false
     }
 
-    return !reservas.some(reserva => {
+    // 1. Verificar solapamiento con reservas confirmadas
+    const chocaReserva = reservas.some(reserva => {
 
       if (
         String(reserva.cancha_id) !==
@@ -326,6 +334,49 @@ export default function Home() {
       )
 
     })
+
+    if (chocaReserva) return false
+
+    // 2. Verificar solapamiento con turnos fijos para el día de la semana actual
+    const [year, month, dayNum] = fecha.split('-')
+    const fechaObj = new Date(Number(year), Number(month) - 1, Number(dayNum))
+    const diaSemanaActual = fechaObj.getDay() // 0 para domingo, 1 para lunes, etc.
+
+    const chocaTurnoFijo = turnosFijos.some(turno => {
+      if (String(turno.cancha_id) !== String(canchaId)) {
+        return false
+      }
+
+      // Validar si la fecha está dentro del rango de vigencia del turno fijo (si aplica)
+      if (turno.fecha_desde && fecha < turno.fecha_desde) return false
+      if (turno.fecha_hasta && fecha > turno.fecha_hasta) return false
+
+      // Validar si el día de la semana coincide (dias_semana suele ser un array ej: [1, 3, 5])
+      const diasArray = Array.isArray(turno.dias_semana) ? turno.dias_semana.map(Number) : []
+      if (!diasArray.includes(diaSemanaActual)) {
+        return false
+      }
+
+      const inicioFijo = horaAMinutos(turno.hora_inicio)
+      const duracionFijaMin = Number(turno.duracion_minutos ?? (turno.duracion ? turno.duracion * 60 : 60))
+      let finFijo = inicioFijo + duracionFijaMin
+
+      let inicioComparar = inicioNuevo
+      let finComparar = finNuevo
+
+      if (finComparar < inicioComparar) {
+        finComparar += 24 * 60
+      }
+
+      return (
+        inicioComparar < finFijo &&
+        finComparar > inicioFijo
+      )
+    })
+
+    if (chocaTurnoFijo) return false
+
+    return true
   }
 
   const horariosDisponibles = useMemo(() => {
@@ -338,8 +389,10 @@ export default function Home() {
   }, [
     horariosBase,
     reservas,
+    turnosFijos,
     canchaId,
-    duracion
+    duracion,
+    fecha
   ])
 
   function cambiarCancha(id) {
@@ -419,7 +472,7 @@ export default function Home() {
         'Elegí otro horario.'
       )
 
-      await cargarReservasDelDia()
+      await cargarDatosDelDia()
 
       return
     }
@@ -504,7 +557,7 @@ export default function Home() {
       setTelefono('')
       setHoraInicio('')
 
-      await cargarReservasDelDia()
+      await cargarDatosDelDia()
 
     } catch (err) {
 
