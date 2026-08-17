@@ -55,6 +55,11 @@ function formatearFechaConDia(fechaStr) {
   return `${diaSemana} ${mes}-${dia}`
 }
 
+function formatearHora(horaStr) {
+  if (!horaStr) return ''
+  return horaStr.slice(0, 5)
+}
+
 function telefonoWhatsAppArgentina(telefono) {
   if (!telefono) return null
 
@@ -874,7 +879,7 @@ export default function AdminPage() {
       confirm(
         `¿Querés convertir el turno de ${reserva.cliente_nombre || 'este cliente'} en turno fijo?\n\n` +
         `Cancha: ${nombreCancha(reserva.cancha_id)}\n` +
-        `Horario: ${reserva.hora_inicio} - ${reserva.hora_fin || ''}\n\n` +
+        `Horario: ${formatearHora(reserva.hora_inicio)} - ${formatearHora(reserva.hora_fin || '')}\n\n` +
         `Se mantendrá el mismo día de la semana y horario.`
       )
 
@@ -1078,7 +1083,7 @@ export default function AdminPage() {
     const confirmar = confirm(
       `¿Querés liberar este turno fijo solamente para el día ${fechaAgendaActual}?\n\n` +
       `Cliente: ${fijo.cliente_nombre}\n` +
-      `Horario: ${fijo.hora_inicio} - ${horaFinTurno(fijo)}\n\n` +
+      `Horario: ${formatearHora(fijo.hora_inicio)} - ${formatearHora(horaFinTurno(fijo))}\n\n` +
       `El turno fijo seguirá activo para las próximas semanas, pero este día quedará libre.`
     )
 
@@ -1106,10 +1111,10 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      // Generar texto para el estado de WhatsApp con formato Fecha: YYYY-MM-DD (Día MM-DD)
+      // Generar texto para el estado de WhatsApp con formato Fecha: YYYY-MM-DD (Día MM-DD) y (Cancha X)
       const nomCancha = nombreCancha(fijo.cancha_id)
       const fechaFormateada = `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${fijo.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1154,7 +1159,7 @@ export default function AdminPage() {
       const nomCancha = nombreCancha(reservaAEliminar.cancha_id)
       const horaFin = reservaAEliminar.hora_fin || sumarMinutos(reservaAEliminar.hora_inicio, 90)
       const fechaFormateada = `${reservaAEliminar.fecha} (${formatearFechaConDia(reservaAEliminar.fecha)})`
-      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${reservaAEliminar.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(reservaAEliminar.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
 
       setModalWhatsApp({
         abierto: true,
@@ -1818,7 +1823,7 @@ export default function AdminPage() {
                         fontWeight: 'bold'
                       }}
                     >
-                      {h}
+                      {formatearHora(h)}
                     </div>
                   )
                 })}
@@ -2007,7 +2012,7 @@ export default function AdminPage() {
                             key={hora}
                             value={hora}
                           >
-                            {hora}
+                            {formatearHora(hora)}
                           </option>
                         )
                       )}
@@ -2117,7 +2122,7 @@ export default function AdminPage() {
                             key={hora}
                             value={hora}
                           >
-                            {hora}
+                            {formatearHora(hora)}
                           </option>
                         )
                       )}
@@ -2291,7 +2296,7 @@ export default function AdminPage() {
                     <h3>
                       🎾 {nombreCancha(
                         cancha.id
-                      )}
+                      )} ({nombreCancha(cancha.id).toLowerCase()})
                     </h3>
 
                     {reservasPendientes.map(
@@ -2302,11 +2307,11 @@ export default function AdminPage() {
                         >
 
                           <strong>
-                            🟢 {reserva.hora_inicio}
+                            🟢 {formatearHora(reserva.hora_inicio)}
 
                             {reserva.hora_fin
-                              ? ` - ${reserva.hora_fin}`
-                              : ''}
+                              ? ` - ${formatearHora(reserva.hora_fin)}`
+                              : ''} ({nombreCancha(reserva.cancha_id).toLowerCase()})
                           </strong>
 
                           <div className="info">
@@ -2547,7 +2552,7 @@ export default function AdminPage() {
                       📅{' '}
                       {nombreCancha(
                         canchaCasualesConfirmadosFiltro
-                      )}
+                      )} ({nombreCancha(canchaCasualesConfirmadosFiltro).toLowerCase()})
 
                       {' — '}
 
@@ -2574,11 +2579,11 @@ export default function AdminPage() {
                         >
 
                           <strong>
-                            🟣 {reserva.hora_inicio}
+                            🟣 {formatearHora(reserva.hora_inicio)}
 
                             {reserva.hora_fin
-                              ? ` - ${reserva.hora_fin}`
-                              : ''}
+                              ? ` - ${formatearHora(reserva.hora_fin)}`
+                              : ''} ({nombreCancha(reserva.cancha_id).toLowerCase()})
                           </strong>
 
                           <div
@@ -2840,7 +2845,7 @@ export default function AdminPage() {
                         📅{' '}
                         {nombreCancha(
                           canchaFijosFiltro
-                        )}
+                        )} ({nombreCancha(canchaFijosFiltro).toLowerCase()})
 
                         {' — '}
 
@@ -2872,13 +2877,13 @@ export default function AdminPage() {
 
                               <strong>
                                 ⏰{' '}
-                                {fijo.hora_inicio}
+                                {formatearHora(fijo.hora_inicio)}
 
                                 {' a '}
 
-                                {horaFinTurno(
+                                {formatearHora(horaFinTurno(
                                   fijo
-                                )}
+                                ))} ({nombreCancha(fijo.cancha_id).toLowerCase()})
                               </strong>
 
                               <div
