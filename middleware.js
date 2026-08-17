@@ -1,14 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
+const supabaseUrl = 'https://ujtayxzztugpvlovkkva.supabase.co'
+const supabaseAnonKey = 'sb_publishable_iOQmQOJVJalUZNPglrXvdQ_dbuz1pWa'
+
 export async function middleware(request) {
   let response = NextResponse.next({
     request: { headers: request.headers }
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
