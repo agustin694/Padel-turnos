@@ -33,10 +33,17 @@ function fechaLocalHoy() {
   ).padStart(2, '0')}`
 }
 
-function generarHorarios() {
+function generarHorarios(fechaSeleccionada) {
   const horarios = []
+  const ahora = new Date()
+  const esHoy = fechaSeleccionada === fechaLocalHoy()
+  const minutosActuales = esHoy ? ahora.getHours() * 60 + ahora.getMinutes() : 0
 
   for (let minutos = 7 * 60; minutos <= 24 * 60 - 30; minutos += 30) {
+    if (esHoy && minutos < minutosActuales) {
+      continue
+    }
+
     const horas = Math.floor(minutos / 60) % 24
     const mins = minutos % 60
 
@@ -47,8 +54,6 @@ function generarHorarios() {
 
   return horarios
 }
-
-const HORARIOS = generarHorarios()
 
 function horaAMinutos(hora) {
   if (!hora) return 0
@@ -255,6 +260,10 @@ export default function Home() {
   const saldoPendiente =
     precioTotal - montoPago
 
+  const horariosBase = useMemo(() => {
+    return generarHorarios(fecha)
+  }, [fecha])
+
   function horarioDisponible(hora) {
 
     if (!canchaId) {
@@ -321,12 +330,13 @@ export default function Home() {
 
   const horariosDisponibles = useMemo(() => {
 
-    return HORARIOS.filter(
+    return horariosBase.filter(
       hora =>
         horarioDisponible(hora)
     )
 
   }, [
+    horariosBase,
     reservas,
     canchaId,
     duracion
@@ -775,6 +785,30 @@ export default function Home() {
         .input:focus,
         .select:focus {
           border-color: #d7ff45;
+        }
+
+        .canchasGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .canchaBoton {
+          padding: 13px 10px;
+          border: 1px solid #29483a;
+          border-radius: 13px;
+          background: #0b1b14;
+          color: #a8bbb2;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 900;
+          text-align: center;
+        }
+
+        .canchaBoton.activo {
+          background: #d7ff45;
+          border-color: #d7ff45;
+          color: #17210c;
         }
 
         .duraciones {
@@ -1390,28 +1424,37 @@ export default function Home() {
                   Cancha
                 </label>
 
-                <select
-                  className="select"
-                  value={canchaId}
-                  onChange={e =>
-                    cambiarCancha(
-                      e.target.value
+                <div className="canchasGrid">
+
+                  {canchas.map((cancha, index) => {
+
+                    const seleccionado =
+                      String(cancha.id) === String(canchaId)
+
+                    return (
+
+                      <button
+                        key={cancha.id}
+                        type="button"
+                        className={
+                          `canchaBoton ${
+                            seleccionado
+                              ? 'activo'
+                              : ''
+                          }`
+                        }
+                        onClick={() =>
+                          cambiarCancha(cancha.id)
+                        }
+                      >
+                        🎾 Cancha {index + 1}
+                      </button>
+
                     )
-                  }
-                >
 
-                  {canchas.map(cancha => (
+                  })}
 
-                    <option
-                      key={cancha.id}
-                      value={cancha.id}
-                    >
-                      {nombreCancha(cancha.id)}
-                    </option>
-
-                  ))}
-
-                </select>
+                </div>
 
               </div>
 
