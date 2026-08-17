@@ -717,6 +717,22 @@ export default function AdminPage() {
           background: #ca8a04;
         }
 
+        .btnWsp {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: #25d366;
+          color: #07110d;
+          border: 0;
+          border-radius: 6px;
+          padding: 3px 8px;
+          font-size: 11px;
+          font-weight: bold;
+          cursor: pointer;
+          text-decoration: none;
+          margin-left: 6px;
+        }
+
         .btnEliminar {
           border: 1px solid #ef4444;
           color: #ff7777;
@@ -1008,7 +1024,7 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* AGENDA (SOLO RESERVAS DEL DÍA, SIN FIJOS, AL CONFIRMAR PAGO DESAPARECE Y MUESTRA TURNO CONFIRMADO EN VERDE) */}
+        {/* AGENDA */}
         <section className="tarjeta">
           <h2>📅 Agenda</h2>
 
@@ -1084,7 +1100,7 @@ export default function AdminPage() {
                       </div>
                     ))}
 
-                    {/* Confirmados (Pagados) */}
+                    {/* Confirmados (Pagados en verde con leyenda Reservado) */}
                     {reservasConfirmadas.length > 0 && (
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginBottom: '6px' }}>
@@ -1101,7 +1117,7 @@ export default function AdminPage() {
                               {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
                             </div>
                             <div className="info" style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                              ✓ Turno confirmado
+                              ✅ Reservado
                             </div>
                             <div className="acciones">
                               <button
@@ -1132,7 +1148,7 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* TURNOS FIJOS ACTIVOS (SEPARADOS POR CANCHA Y DÍA DE LUNES A DOMINGO) */}
+        {/* TURNOS FIJOS ACTIVOS (CON BOTÓN DE WHATSAPP) */}
         <section className="tarjeta">
           <button
             className="toggle"
@@ -1200,9 +1216,24 @@ export default function AdminPage() {
                           <strong>
                             ⏰ {fijo.hora_inicio} a {horaFinTurno(fijo)}
                           </strong>
-                          <div className="info">
+                          <div className="info" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                             👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
-                            {fijo.cliente_telefono ? ` · 📞 ${fijo.cliente_telefono}` : ' · 📞 Sin teléfono'}
+                            {fijo.cliente_telefono ? (
+                              <>
+                                <span>· 📞 {fijo.cliente_telefono}</span>
+                                <a
+                                  href={`https://wa.me/${fijo.cliente_telefono.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btnWsp"
+                                  title="Enviar mensaje por WhatsApp"
+                                >
+                                  💬 WhatsApp
+                                </a>
+                              </>
+                            ) : (
+                              <span>· 📞 Sin teléfono</span>
+                            )}
                           </div>
                           <div className="acciones">
                             <button
@@ -1225,3 +1256,4 @@ export default function AdminPage() {
     </main>
   )
 }
+
