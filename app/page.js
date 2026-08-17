@@ -77,6 +77,7 @@ function generarHorarios() {
 const HORARIOS = generarHorarios()
 
 export default function Home() {
+
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
@@ -112,15 +113,18 @@ export default function Home() {
   }, [fechaSeleccionada])
 
   async function cargarDatos() {
+
     setCargando(true)
     setErrorCarga('')
 
     try {
+
       const [
         { data: dataCanchas, error: errorCanchas },
         { data: dataReservas, error: errorReservas },
         { data: dataFijos, error: errorFijos }
       ] = await Promise.all([
+
         supabase
           .from('canchas')
           .select('*')
@@ -135,6 +139,7 @@ export default function Home() {
           .from('turnos_fijos')
           .select('*')
           .eq('estado', 'activo')
+
       ])
 
       if (errorCanchas) {
@@ -166,27 +171,30 @@ export default function Home() {
       ) {
         setCanchaSeleccionada(dataCanchas[0].id)
       }
+
     } catch (error) {
+
       console.error(error)
 
       setErrorCarga(
         error.message ||
         'No se pudieron cargar los horarios.'
       )
+
     } finally {
+
       setCargando(false)
+
     }
   }
 
-  /*
-   * Devuelve true si existe alguna reserva
-   * que ocupe ese bloque de 30 minutos.
-   */
   function hayReserva(canchaId, hora) {
+
     const inicio = convertirMinutos(hora)
     const fin = inicio + 30
 
     return reservas.some((r) => {
+
       if (
         Number(r.cancha_id) !==
         Number(canchaId)
@@ -205,15 +213,12 @@ export default function Home() {
         inicio < finReserva &&
         fin > inicioReserva
       )
+
     })
   }
 
-  /*
-   * Comprueba si un turno fijo ocupa ese bloque.
-   * Esto se usa internamente.
-   * El cliente nunca verá esta información.
-   */
   function hayTurnoFijo(canchaId, hora) {
+
     const fechaObj = new Date(
       `${fechaSeleccionada}T12:00:00`
     )
@@ -224,6 +229,7 @@ export default function Home() {
     const fin = inicio + 30
 
     return turnosFijos.some((t) => {
+
       if (
         Number(t.cancha_id) !==
         Number(canchaId)
@@ -232,15 +238,13 @@ export default function Home() {
       }
 
       if (
-        fechaSeleccionada <
-        t.fecha_desde
+        fechaSeleccionada < t.fecha_desde
       ) {
         return false
       }
 
       if (
-        fechaSeleccionada >
-        t.fecha_hasta
+        fechaSeleccionada > t.fecha_hasta
       ) {
         return false
       }
@@ -252,9 +256,7 @@ export default function Home() {
       }
 
       if (
-        !t.dias_semana.includes(
-          diaSemana
-        )
+        !t.dias_semana.includes(diaSemana)
       ) {
         return false
       }
@@ -270,18 +272,16 @@ export default function Home() {
         inicio < finFijo &&
         fin > inicioFijo
       )
+
     })
   }
 
-  /*
-   * Comprueba si una duración completa
-   * está disponible.
-   */
   function estaDisponible(
     canchaId,
     horaInicio,
     duracionMinutos
   ) {
+
     const inicio =
       convertirMinutos(horaInicio)
 
@@ -297,6 +297,7 @@ export default function Home() {
       minuto < fin;
       minuto += 30
     ) {
+
       const hora =
         minutosAHora(minuto)
 
@@ -317,30 +318,58 @@ export default function Home() {
       ) {
         return false
       }
+
     }
 
     return true
   }
 
-  /*
-   * IMPORTANTE:
-   * El cliente solamente verá horarios
-   * que tengan al menos 1 hora disponible.
-   */
   function obtenerHorariosDisponibles(
     canchaId
   ) {
-    return HORARIOS.filter((hora) =>
-      estaDisponible(
+
+    const hoy = fechaLocal()
+
+    return HORARIOS.filter((hora) => {
+
+      // No permitir fechas anteriores
+      if (fechaSeleccionada < hoy) {
+        return false
+      }
+
+      // Si es hoy, ocultar horarios que ya pasaron
+      if (fechaSeleccionada === hoy) {
+
+        const ahora = new Date()
+
+        const minutosActuales =
+          ahora.getHours() * 60 +
+          ahora.getMinutes()
+
+        const minutosHorario =
+          convertirMinutos(hora)
+
+        if (
+          minutosHorario <=
+          minutosActuales
+        ) {
+          return false
+        }
+      }
+
+      // Debe existir como mínimo 1 hora libre
+      return estaDisponible(
         canchaId,
         hora,
         60
       )
-    )
+
+    })
   }
 
   const horariosDisponibles =
     useMemo(() => {
+
       if (!canchaSeleccionada) {
         return []
       }
@@ -348,6 +377,7 @@ export default function Home() {
       return obtenerHorariosDisponibles(
         canchaSeleccionada
       )
+
     }, [
       canchaSeleccionada,
       reservas,
@@ -355,12 +385,9 @@ export default function Home() {
       fechaSeleccionada
     ])
 
-  /*
-   * Duraciones posibles:
-   * 60, 90, 120, 150...
-   */
   const duracionesDisponibles =
     useMemo(() => {
+
       if (!horaSeleccionada) {
         return []
       }
@@ -372,6 +399,7 @@ export default function Home() {
         minutos <= 300;
         minutos += 30
       ) {
+
         if (
           estaDisponible(
             canchaSeleccionada,
@@ -381,9 +409,11 @@ export default function Home() {
         ) {
           opciones.push(minutos)
         }
+
       }
 
       return opciones
+
     }, [
       horaSeleccionada,
       canchaSeleccionada,
@@ -392,28 +422,35 @@ export default function Home() {
     ])
 
   useEffect(() => {
+
     if (
       duracionesDisponibles.length > 0 &&
       !duracionesDisponibles.includes(
         duracion
       )
     ) {
+
       setDuracion(
         duracionesDisponibles[0]
       )
+
     }
+
   }, [
     duracionesDisponibles,
     duracion
   ])
 
   function abrirReserva(hora) {
+
     setHoraSeleccionada(hora)
     setDuracion(60)
     setModalReserva(true)
+
   }
 
   async function reservarYContinuarAlPago() {
+
     if (!nombreCliente.trim()) {
       alert('Ingresá tu nombre.')
       return
@@ -441,6 +478,7 @@ export default function Home() {
         duracion
       )
     ) {
+
       alert(
         'Ese horario ya no está disponible.'
       )
@@ -454,6 +492,7 @@ export default function Home() {
     setGuardando(true)
 
     try {
+
       const horaFin =
         sumarMinutos(
           horaSeleccionada,
@@ -501,7 +540,7 @@ export default function Home() {
       }
 
       /*
-       * Mercado Pago se conectará
+       * Mercado Pago se conecta
        * en el siguiente paso.
        */
 
@@ -510,6 +549,7 @@ export default function Home() {
       )
 
       setModalReserva(false)
+
       setNombreCliente('')
       setTelefonoCliente('')
       setHoraSeleccionada(null)
@@ -517,18 +557,23 @@ export default function Home() {
       await cargarDatos()
 
     } catch (error) {
+
       console.error(error)
 
       alert(
         'No pudimos crear la reserva.\n\n' +
         error.message
       )
+
     } finally {
+
       setGuardando(false)
+
     }
   }
 
   function consultarHorario(hora) {
+
     const cancha =
       canchas.find(
         (c) =>
@@ -536,11 +581,21 @@ export default function Home() {
           Number(canchaSeleccionada)
       )
 
-    const mensaje =
-      `Hola, quería consultar por una reserva en ${NOMBRE_CLUB}.` +
-      `\nCancha: ${cancha?.nombre || ''}` +
-      `\nFecha: ${fechaSeleccionada}` +
-      `\nHorario: ${hora}`
+    let mensaje =
+      `Hola, quería consultar por una reserva en ${NOMBRE_CLUB}.`
+
+    if (cancha?.nombre) {
+      mensaje +=
+        `\nCancha: ${cancha.nombre}`
+    }
+
+    mensaje +=
+      `\nFecha: ${fechaSeleccionada}`
+
+    if (hora) {
+      mensaje +=
+        `\nHorario: ${hora}`
+    }
 
     const url =
       `https://wa.me/${NUMERO_WHATSAPP}` +
@@ -553,6 +608,7 @@ export default function Home() {
   }
 
   function cambiarFecha(cantidad) {
+
     const fecha =
       new Date(
         `${fechaSeleccionada}T12:00:00`
@@ -581,6 +637,7 @@ export default function Home() {
   }
 
   return (
+
     <main className="pagina">
 
       <style jsx global>{`
@@ -592,10 +649,7 @@ export default function Home() {
         body {
           margin: 0;
           background: #07110d;
-          font-family:
-            Arial,
-            Helvetica,
-            sans-serif;
+          font-family: Arial, Helvetica, sans-serif;
           color: white;
         }
 
@@ -607,6 +661,7 @@ export default function Home() {
 
         .pagina {
           min-height: 100vh;
+
           background:
             radial-gradient(
               circle at top,
@@ -614,6 +669,7 @@ export default function Home() {
               #07110d 48%,
               #030806 100%
             );
+
           padding-bottom: 60px;
         }
 
@@ -632,8 +688,10 @@ export default function Home() {
         .logo {
           width: 76px;
           height: 76px;
+
           margin: auto;
           margin-bottom: 12px;
+
           border-radius: 22px;
 
           display: flex;
@@ -675,6 +733,7 @@ export default function Home() {
             rgba(255,255,255,.1);
 
           border-radius: 22px;
+
           padding: 18px;
           margin-bottom: 16px;
 
@@ -704,7 +763,9 @@ export default function Home() {
             rgba(255,255,255,.1);
 
           color: white;
+
           font-size: 24px;
+
           cursor: pointer;
         }
 
@@ -715,7 +776,9 @@ export default function Home() {
 
         .fechaCentro strong {
           display: block;
+
           text-transform: capitalize;
+
           font-size: 16px;
         }
 
@@ -725,6 +788,7 @@ export default function Home() {
 
         .inputFecha {
           width: 100%;
+
           margin-top: 12px;
 
           padding: 11px;
@@ -735,11 +799,13 @@ export default function Home() {
           border-radius: 12px;
 
           background: #0b1b14;
+
           color: white;
         }
 
         .tabs {
           display: grid;
+
           grid-template-columns:
             repeat(2, 1fr);
 
@@ -755,21 +821,28 @@ export default function Home() {
           border-radius: 14px;
 
           background: #0b1b14;
+
           color: #afc1b8;
 
           font-weight: 800;
+
           cursor: pointer;
         }
 
         .tab.activa {
           background: #d7ff45;
+
           color: #142009;
+
           border-color: #d7ff45;
         }
 
         .canchaHeader {
           display: flex;
-          justify-content: space-between;
+
+          justify-content:
+            space-between;
+
           align-items: center;
 
           margin-bottom: 16px;
@@ -795,8 +868,11 @@ export default function Home() {
           width: 100%;
 
           display: flex;
+
           align-items: center;
-          justify-content: space-between;
+
+          justify-content:
+            space-between;
 
           gap: 10px;
 
@@ -817,14 +893,19 @@ export default function Home() {
 
         .hora {
           min-width: 65px;
+
           font-size: 18px;
+
           font-weight: 900;
+
           color: #c9ff8b;
         }
 
         .disponible {
           color: #9ce66a;
+
           font-size: 11px;
+
           font-weight: 800;
         }
 
@@ -837,6 +918,7 @@ export default function Home() {
           border: 0;
 
           background: #d7ff45;
+
           color: #17210c;
 
           padding: 10px 11px;
@@ -844,6 +926,7 @@ export default function Home() {
           border-radius: 11px;
 
           font-size: 11px;
+
           font-weight: 900;
 
           cursor: pointer;
@@ -863,6 +946,7 @@ export default function Home() {
           border-radius: 11px;
 
           font-size: 11px;
+
           font-weight: 800;
 
           cursor: pointer;
@@ -870,8 +954,11 @@ export default function Home() {
 
         .sinHorarios {
           padding: 25px 10px;
+
           text-align: center;
-          color: #9aacA3;
+
+          color: #9aaca3;
+
           font-size: 14px;
         }
 
@@ -887,6 +974,7 @@ export default function Home() {
           border-radius: 15px;
 
           background: #25d366;
+
           color: white;
 
           font-weight: 900;
@@ -902,7 +990,9 @@ export default function Home() {
           border-radius: 14px;
 
           background: #421d22;
-          border: 1px solid #74343c;
+
+          border:
+            1px solid #74343c;
 
           color: #ffb6bd;
 
@@ -911,6 +1001,7 @@ export default function Home() {
 
         .modalFondo {
           position: fixed;
+
           inset: 0;
 
           z-index: 100;
@@ -919,7 +1010,9 @@ export default function Home() {
             rgba(0,0,0,.75);
 
           display: flex;
+
           align-items: flex-end;
+
           justify-content: center;
 
           padding: 12px;
@@ -927,6 +1020,7 @@ export default function Home() {
 
         .modal {
           width: 100%;
+
           max-width: 560px;
 
           background: #0d1f17;
@@ -945,7 +1039,9 @@ export default function Home() {
 
         .detalle {
           color: #9fb2a9;
+
           font-size: 13px;
+
           line-height: 1.7;
 
           margin-bottom: 18px;
@@ -963,6 +1059,7 @@ export default function Home() {
           color: #b9c9c2;
 
           font-size: 12px;
+
           font-weight: 800;
         }
 
@@ -1004,6 +1101,7 @@ export default function Home() {
           border-radius: 13px;
 
           background: transparent;
+
           color: #c2d0ca;
 
           font-weight: 800;
@@ -1029,6 +1127,7 @@ export default function Home() {
 
         .btnPagar:disabled {
           opacity: .5;
+
           cursor: wait;
         }
 
@@ -1058,7 +1157,7 @@ export default function Home() {
 
           padding: 30px;
 
-          color: #9cafA6;
+          color: #9cafa6;
         }
 
         @media(max-width: 520px) {
@@ -1103,6 +1202,7 @@ export default function Home() {
         </header>
 
         {errorCarga && (
+
           <div className="error">
 
             <strong>
@@ -1128,6 +1228,7 @@ export default function Home() {
             </button>
 
           </div>
+
         )}
 
         <section className="tarjeta">
@@ -1176,6 +1277,7 @@ export default function Home() {
             className="inputFecha"
             type="date"
             value={fechaSeleccionada}
+            min={fechaLocal()}
             onChange={(e) =>
               setFechaSeleccionada(
                 e.target.value
@@ -1216,8 +1318,10 @@ export default function Home() {
                     )
                   }
                 >
+
                   {cancha.nombre ||
                     `Cancha ${index + 1}`}
+
                 </button>
 
               )
@@ -1259,8 +1363,7 @@ export default function Home() {
 
               </div>
 
-              {horariosDisponibles.length ===
-              0 ? (
+              {horariosDisponibles.length === 0 ? (
 
                 <div className="sinHorarios">
 
@@ -1354,6 +1457,7 @@ export default function Home() {
 
         <div
           className="modalFondo"
+
           onClick={(e) => {
 
             if (
@@ -1396,6 +1500,7 @@ export default function Home() {
 
               Inicio:
               {' '}
+
               <strong>
                 {horaSeleccionada}
               </strong>
@@ -1426,17 +1531,22 @@ export default function Home() {
                       key={minutos}
                       value={minutos}
                     >
+
                       {Math.floor(
                         minutos / 60
                       )}
+
                       {' '}
+
                       hora
                       {minutos >= 120
                         ? 's'
                         : ''}
+
                       {minutos % 60 === 30
                         ? ' y 30 minutos'
                         : ''}
+
                     </option>
 
                   )
@@ -1520,9 +1630,11 @@ export default function Home() {
                   reservarYContinuarAlPago
                 }
               >
+
                 {guardando
                   ? 'Procesando...'
                   : '💳 Reservar y pagar'}
+
               </button>
 
             </div>
@@ -1535,4 +1647,4 @@ export default function Home() {
 
     </main>
   )
-              }
+        }
