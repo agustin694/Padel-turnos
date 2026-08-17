@@ -5,6 +5,16 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
 const DIAS = [
+  { numero: 1, nombre: 'Lunes' },
+  { numero: 2, nombre: 'Martes' },
+  { numero: 3, nombre: 'Miércoles' },
+  { numero: 4, nombre: 'Jueves' },
+  { numero: 5, nombre: 'Viernes' },
+  { numero: 6, nombre: 'Sábado' },
+  { numero: 0, nombre: 'Domingo' }
+]
+
+const DIAS_SHORT = [
   { numero: 1, nombre: 'Lun' },
   { numero: 2, nombre: 'Mar' },
   { numero: 3, nombre: 'Mié' },
@@ -12,10 +22,6 @@ const DIAS = [
   { numero: 5, nombre: 'Vie' },
   { numero: 6, nombre: 'Sáb' },
   { numero: 0, nombre: 'Dom' }
-]
-
-const NOMBRES_DIAS_SEMANA = [
-  'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
 ]
 
 const DURACIONES = [60, 90, 120, 150, 180]
@@ -76,16 +82,6 @@ function sumarDias(fecha, dias) {
   return `${y}-${m}-${day}`
 }
 
-function lunesDeSemana(fecha) {
-  const d = new Date(`${fecha}T12:00:00`)
-
-  const dia = d.getDay()
-
-  const offset = dia === 0 ? -6 : 1 - dia
-
-  return sumarDias(fecha, offset)
-}
-
 function labelDuracion(minutos) {
   const horas = Math.floor(minutos / 60)
   const extra = minutos % 60 === 30
@@ -100,7 +96,6 @@ export default function AdminPage() {
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
-  const [reservasSemana, setReservasSemana] = useState([])
 
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -108,7 +103,6 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] = useState(hoyLocal())
 
   const [canchaId, setCanchaId] = useState('')
-  const [canchaSemana, setCanchaSemana] = useState('')
 
   const [tipoTurno, setTipoTurno] = useState('casual')
 
@@ -128,21 +122,12 @@ export default function AdminPage() {
   const [duracionFijo, setDuracionFijo] = useState(60)
 
   const [mostrarFijos, setMostrarFijos] = useState(true)
-  const [mostrarReservas, setMostrarReservas] = useState(true)
 
   useEffect(() => {
     cargarDatos()
-    cargarSemana(lunesDeSemana(fechaAgenda))
   }, [fechaAgenda])
 
-  useEffect(() => {
-    if (!canchaSemana && canchas.length > 0) {
-      setCanchaSemana(canchas[0].id)
-    }
-  }, [canchas])
-
   function nombreCancha(canchaIdBuscado) {
-
     const index = canchas.findIndex(
       c => Number(c.id) === Number(canchaIdBuscado)
     )
@@ -156,11 +141,9 @@ export default function AdminPage() {
   }
 
   async function cargarDatos() {
-
     setCargando(true)
 
     try {
-
       const [
         { data: dataCanchas, error: errorCanchas },
         { data: dataReservas, error: errorReservas },
@@ -186,71 +169,32 @@ export default function AdminPage() {
 
       ])
 
-      if (errorCanchas) {
-        throw errorCanchas
-      }
-
-      if (errorReservas) {
-        throw errorReservas
-      }
-
-      if (errorFijos) {
-        throw errorFijos
-      }
+      if (errorCanchas) throw errorCanchas
+      if (errorReservas) throw errorReservas
+      if (errorFijos) throw errorFijos
 
       setCanchas(dataCanchas || [])
       setReservas(dataReservas || [])
       setTurnosFijos(dataFijos || [])
 
-      if (
-        !canchaId &&
-        dataCanchas &&
-        dataCanchas.length > 0
-      ) {
+      if (!canchaId && dataCanchas && dataCanchas.length > 0) {
         setCanchaId(dataCanchas[0].id)
       }
 
     } catch (error) {
-
       console.error(error)
-
-      alert(
-        'No se pudieron cargar los datos:\n\n' +
-        error.message
-      )
-
+      alert('No se pudieron cargar los datos:\n\n' + error.message)
     } finally {
-
       setCargando(false)
-
-    }
-  }
-
-  async function cargarSemana(lunes) {
-
-    const domingo = sumarDias(lunes, 6)
-
-    const { data, error } = await supabase
-      .from('reservas')
-      .select('*')
-      .gte('fecha', lunes)
-      .lte('fecha', domingo)
-
-    if (!error) {
-      setReservasSemana(data || [])
     }
   }
 
   function cambiarDia(dia) {
-
     setDiasSeleccionados(prev => {
-
       if (prev.includes(dia)) {
         return prev.filter(d => d !== dia)
       }
-
       return [...prev, dia].sort()
-
     })
   }
 
@@ -263,20 +207,12 @@ export default function AdminPage() {
   }
 
   function turnoFijoCoincideConFecha(turno, fecha) {
-
-    if (
-      fecha < turno.fecha_desde ||
-      fecha > turno.fecha_hasta
-    ) {
+    if (fecha < turno.fecha_desde || fecha > turno.fecha_hasta) {
       return false
     }
 
-    const fechaObj = new Date(
-      `${fecha}T12:00:00`
-    )
-
-    const dia =
-      fechaObj.getDay()
+    const fechaObj = new Date(`${fecha}T12:00:00`)
+    const dia = fechaObj.getDay()
 
     return (
       Array.isArray(turno.dias_semana) &&
@@ -285,15 +221,8 @@ export default function AdminPage() {
   }
 
   function horaFinTurno(turno) {
-
-    const duracionTurno =
-      turno.duracion_minutos || 60
-
-    const minutos =
-      minutosDesdeHora(
-        turno.hora_inicio
-      ) + duracionTurno
-
+    const duracionTurno = turno.duracion_minutos || 60
+    const minutos = minutosDesdeHora(turno.hora_inicio) + duracionTurno
     return horaDesdeMinutos(minutos)
   }
 
@@ -326,8 +255,45 @@ export default function AdminPage() {
     })
   }
 
-  async function crearTurnoCasual(e) {
+  // Valida si un rango de tiempo propuesto choca con algo existente en esa fecha y cancha
+  function haySolapamiento(canchaSel, fechaSel, horaInicioSel, duracionSel) {
+    const inicioNuevo = minutosDesdeHora(horaInicioSel)
+    const finNuevo = inicioNuevo + duracionSel
 
+    // Revisar reservas casuales en esa fecha/cancha
+    const chocaCasual = reservasNormales.some(r => {
+      if (Number(r.cancha_id) !== Number(canchaSel)) return false
+      if (r.fecha !== fechaSel) return false
+      const inicioR = minutosDesdeHora(r.hora_inicio)
+      const finR = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioR + 90
+      return inicioNuevo < finR && finNuevo > inicioR
+    })
+
+    if (chocaCasual) return true
+
+    // Revisar turnos fijos que apliquen a este día de la semana y rango de fechas
+    const chocaFijo = turnosFijos.some(t => {
+      if (Number(t.cancha_id) !== Number(canchaSel)) return false
+      if (!turnoFijoCoincideConFecha(t, fechaSel)) return false
+      const inicioF = minutosDesdeHora(t.hora_inicio)
+      const finF = inicioF + (t.duracion_minutos || 60)
+      return inicioNuevo < finF && finNuevo > inicioF
+    })
+
+    return chocaFijo
+  }
+
+  // Filtra los horarios de inicio para que solo muestren aquellos donde entre completa la duración seleccionada sin solaparse
+  function horariosDisponiblesParaCrear(fechaSel, duracionSel) {
+    if (!canchaId || !fechaSel) return []
+
+    return HORARIOS.filter(hora => {
+      // Validar si el turno completo cabe y no se solapa
+      return !haySolapamiento(canchaId, fechaSel, hora, duracionSel)
+    })
+  }
+
+  async function crearTurnoCasual(e) {
     e.preventDefault()
 
     if (!canchaId) {
@@ -346,14 +312,18 @@ export default function AdminPage() {
     }
 
     if (!horaCasual) {
-      alert('Seleccioná un horario.')
+      alert('Seleccioná un horario disponible.')
+      return
+    }
+
+    if (haySolapamiento(canchaId, fechaCasual, horaCasual, duracionCasual)) {
+      alert('⚠️ El horario seleccionado ya está ocupado. Elegí otro disponible.')
       return
     }
 
     setGuardando(true)
 
     try {
-
       const horaFin = sumarMinutos(horaCasual, duracionCasual)
 
       const { error } = await supabase
@@ -372,39 +342,25 @@ export default function AdminPage() {
           }
         ])
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
-      alert(
-        '✅ Turno casual creado correctamente.'
-      )
+      alert('✅ Turno casual creado correctamente.')
 
       setClienteNombre('')
       setClienteTelefono('')
       setHoraCasual('')
 
       await cargarDatos()
-      await cargarSemana(lunesDeSemana(fechaAgenda))
 
     } catch (error) {
-
       console.error(error)
-
-      alert(
-        'No se pudo crear el turno:\n\n' +
-        error.message
-      )
-
+      alert('No se pudo crear el turno:\n\n' + error.message)
     } finally {
-
       setGuardando(false)
-
     }
   }
 
   async function crearTurnoFijo(e) {
-
     e.preventDefault()
 
     if (!canchaId) {
@@ -423,64 +379,63 @@ export default function AdminPage() {
     }
 
     if (fechaHasta < fechaDesde) {
-      alert(
-        'La fecha hasta no puede ser anterior a la fecha desde.'
-      )
+      alert('La fecha hasta no puede ser anterior a la fecha desde.')
       return
     }
 
     if (diasSeleccionados.length === 0) {
-      alert(
-        'Seleccioná al menos un día de la semana.'
-      )
+      alert('Seleccioná al menos un día de la semana.')
+      return
+    }
+
+    // Verificar si en alguna fecha del rango y día seleccionado hay conflicto
+    let fechaCheck = new Date(`${fechaDesde}T12:00:00`)
+    const fechaFinObj = new Date(`${fechaHasta}T12:00:00`)
+    let hayConflicto = false
+
+    while (fechaCheck <= fechaFinObj) {
+      const y = fechaCheck.getFullYear()
+      const m = String(fechaCheck.getMonth() + 1).padStart(2, '0')
+      const day = String(fechaCheck.getDate()).padStart(2, '0')
+      const fechaStr = `${y}-${m}-${day}`
+      const diaSemana = fechaCheck.getDay()
+
+      if (diasSeleccionados.includes(diaSemana)) {
+        if (haySolapamiento(canchaId, fechaStr, horaFijo, duracionFijo)) {
+          hayConflicto = true
+          break
+        }
+      }
+      fechaCheck.setDate(fechaCheck.getDate() + 1)
+    }
+
+    if (hayConflicto) {
+      alert('⚠️ Hay un conflicto de horarios en alguna de las fechas/días seleccionados. El horario ya está ocupado.')
       return
     }
 
     setGuardando(true)
 
     try {
-
       const { error } = await supabase
         .from('turnos_fijos')
         .insert([
-
           {
             cancha_id: canchaId,
-
-            cliente_nombre:
-              clienteNombre.trim(),
-
-            cliente_telefono:
-              clienteTelefono.trim() || null,
-
-            fecha_desde:
-              fechaDesde,
-
-            fecha_hasta:
-              fechaHasta,
-
-            dias_semana:
-              diasSeleccionados,
-
-            hora_inicio:
-              horaFijo,
-
-            duracion_minutos:
-              duracionFijo,
-
-            estado:
-              'activo'
+            cliente_nombre: clienteNombre.trim(),
+            cliente_telefono: clienteTelefono.trim() || null,
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+            dias_semana: diasSeleccionados,
+            hora_inicio: horaFijo,
+            duracion_minutos: duracionFijo,
+            estado: 'activo'
           }
-
         ])
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
-      alert(
-        '✅ Turno fijo creado correctamente. Se va a repetir automáticamente todas las semanas, en los días elegidos, dentro del rango de fechas.'
-      )
+      alert('✅ Turno fijo creado correctamente.')
 
       setClienteNombre('')
       setClienteTelefono('')
@@ -488,33 +443,18 @@ export default function AdminPage() {
       setFechaHasta('')
 
       await cargarDatos()
-      await cargarSemana(lunesDeSemana(fechaAgenda))
 
     } catch (error) {
-
       console.error(error)
-
-      alert(
-        'No se pudo crear el turno fijo:\n\n' +
-        error.message
-      )
-
+      alert('No se pudo crear el turno fijo:\n\n' + error.message)
     } finally {
-
       setGuardando(false)
-
     }
   }
 
   async function eliminarTurnoFijo(id) {
-
-    const confirmar = confirm(
-      '¿Querés eliminar este turno fijo completo?'
-    )
-
-    if (!confirmar) {
-      return
-    }
+    const confirmar = confirm('¿Querés eliminar este turno fijo completo?')
+    if (!confirmar) return
 
     const { error } = await supabase
       .from('turnos_fijos')
@@ -522,30 +462,17 @@ export default function AdminPage() {
       .eq('id', id)
 
     if (error) {
-
-      alert(
-        'No se pudo eliminar:\n\n' +
-        error.message
-      )
-
+      alert('No se pudo eliminar:\n\n' + error.message)
       return
     }
 
     alert('Turno fijo eliminado.')
-
     cargarDatos()
-    cargarSemana(lunesDeSemana(fechaAgenda))
   }
 
   async function cancelarReserva(id) {
-
-    const confirmar = confirm(
-      '¿Seguro que querés cancelar esta reserva?'
-    )
-
-    if (!confirmar) {
-      return
-    }
+    const confirmar = confirm('¿Seguro que querés cancelar esta reserva?')
+    if (!confirmar) return
 
     const { error } = await supabase
       .from('reservas')
@@ -553,150 +480,50 @@ export default function AdminPage() {
       .eq('id', id)
 
     if (error) {
-
-      alert(
-        'No se pudo cancelar:\n\n' +
-        error.message
-      )
-
+      alert('No se pudo cancelar:\n\n' + error.message)
       return
     }
 
     cargarDatos()
-    cargarSemana(lunesDeSemana(fechaAgenda))
   }
 
   async function cambiarPago(id, estadoActual) {
-
     const { error } = await supabase
       .from('reservas')
       .update({
-        pago_confirmado:
-          !estadoActual
+        pago_confirmado: !estadoActual
       })
       .eq('id', id)
 
     if (error) {
-
-      alert(
-        'No se pudo actualizar el pago:\n\n' +
-        error.message
-      )
-
+      alert('No se pudo actualizar el pago:\n\n' + error.message)
       return
     }
 
     cargarDatos()
   }
 
-  function hayReservaEnSemana(canchaIdBuscada, fecha, hora) {
+  const fijosDelDia = turnosFijos.filter(
+    t => turnoFijoCoincideConFecha(t, fechaAgenda)
+  )
 
-    const inicio = minutosDesdeHora(hora)
-    const fin = inicio + 30
+  const reservasNormales = reservas.filter(
+    r => r.estado !== 'bloqueado'
+  )
 
-    return reservasSemana.some(r => {
+  const horariosDisponiblesCasual = useMemo(
+    () => horariosDisponiblesParaCrear(fechaCasual, duracionCasual),
+    [canchaId, fechaCasual, duracionCasual, reservas, turnosFijos]
+  )
 
-      if (Number(r.cancha_id) !== Number(canchaIdBuscada)) {
-        return false
-      }
-
-      if (r.fecha !== fecha) {
-        return false
-      }
-
-      const inicioReserva = minutosDesdeHora(r.hora_inicio)
-
-      const finReserva = r.hora_fin
-        ? minutosDesdeHora(r.hora_fin)
-        : inicioReserva + 90
-
-      return inicio < finReserva && fin > inicioReserva
-
-    })
-  }
-
-  function hayTurnoFijoEnSemana(canchaIdBuscada, fecha, hora) {
-
-    const inicio = minutosDesdeHora(hora)
-    const fin = inicio + 30
-
-    return turnosFijos.some(t => {
-
-      if (Number(t.cancha_id) !== Number(canchaIdBuscada)) {
-        return false
-      }
-
-      if (!turnoFijoCoincideConFecha(t, fecha)) {
-        return false
-      }
-
-      const inicioFijo = minutosDesdeHora(t.hora_inicio)
-      const finFijo = inicioFijo + (t.duracion_minutos || 60)
-
-      return inicio < finFijo && fin > inicioFijo
-
-    })
-  }
-
-  function horariosLibresDia(fecha) {
-
-    const hoy = hoyLocal()
-
-    if (!canchaSemana) {
-      return []
-    }
-
-    return HORARIOS.filter(hora => {
-
-      if (fecha < hoy) {
-        return false
-      }
-
-      if (fecha === hoy) {
-
-        const ahora = new Date()
-
-        const minutosActuales =
-          ahora.getHours() * 60 + ahora.getMinutes()
-
-        if (minutosDesdeHora(hora) <= minutosActuales) {
-          return false
-        }
-      }
-
-      return (
-        !hayReservaEnSemana(canchaSemana, fecha, hora) &&
-        !hayTurnoFijoEnSemana(canchaSemana, fecha, hora)
-      )
-
-    })
-  }
-
-  const diasSemanaFechas = useMemo(() => {
-
-    const lunes = lunesDeSemana(fechaAgenda)
-
-    return [0, 1, 2, 3, 4, 5, 6].map(i => sumarDias(lunes, i))
-
-  }, [fechaAgenda])
-
-  const fijosDelDia =
-    turnosFijos.filter(
-      t => turnoFijoCoincideConFecha(t, fechaAgenda)
-    )
-
-  const reservasNormales =
-    reservas.filter(
-      r =>
-        r.estado !== 'bloqueado'
-    )
+  const horariosDisponiblesFijo = useMemo(
+    () => horariosDisponiblesParaCrear(fechaDesde, duracionFijo),
+    [canchaId, fechaDesde, duracionFijo, reservas, turnosFijos]
+  )
 
   return (
-
     <main>
-
       <style jsx global>{`
-
         * {
           box-sizing: border-box;
         }
@@ -957,70 +784,6 @@ export default function AdminPage() {
           cursor: pointer;
         }
 
-        .semanaGrid {
-          display: flex;
-          gap: 8px;
-          overflow-x: auto;
-          padding-bottom: 6px;
-        }
-
-        .diaSemana {
-          min-width: 118px;
-          background: #07120d;
-          border: 1px solid #2b6642;
-          border-radius: 12px;
-          padding: 10px;
-          text-align: center;
-          flex-shrink: 0;
-        }
-
-        .diaSemana strong {
-          display: block;
-          font-size: 13px;
-        }
-
-        .fechaChica {
-          color: #82978d;
-          font-size: 11px;
-          margin-bottom: 6px;
-        }
-
-        .cantidadLibre {
-          color: #9ce66a;
-          font-weight: 800;
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-
-        .chipsHorarios {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-          justify-content: center;
-          margin-bottom: 10px;
-          min-height: 22px;
-        }
-
-        .chip {
-          background: rgba(215,255,69,.12);
-          border: 1px solid rgba(215,255,69,.25);
-          color: #d7ff45;
-          font-size: 10px;
-          padding: 3px 6px;
-          border-radius: 6px;
-        }
-
-        .btnVerDia {
-          width: 100%;
-          border: 1px solid #355546;
-          background: transparent;
-          color: #c2d0ca;
-          padding: 7px;
-          border-radius: 8px;
-          font-size: 11px;
-          cursor: pointer;
-        }
-
         .grupoCancha {
           margin-bottom: 18px;
         }
@@ -1030,57 +793,32 @@ export default function AdminPage() {
         }
 
         @media(max-width: 520px) {
-
           .fila {
             grid-template-columns: 1fr;
           }
-
           .contenedor {
             padding: 12px;
           }
-
           .dias {
             grid-template-columns: repeat(4, 1fr);
           }
-
         }
-
       `}</style>
 
       <div className="contenedor">
-
         <div className="tituloPrincipal">
-
-          <h1>
-            🔒 Panel Admin: Quinta Padel
-          </h1>
-
-          <p>
-            {fechaAgenda}
-          </p>
-
-          <button
-            className="btnLogout"
-            onClick={cerrarSesion}
-          >
+          <h1>🔒 Panel Admin: Quinta Padel</h1>
+          <p>{fechaAgenda}</p>
+          <button className="btnLogout" onClick={cerrarSesion}>
             Cerrar sesión
           </button>
-
         </div>
 
         {/* NAVEGADOR RÁPIDO DE DÍAS (LUNES A DOMINGO) */}
         <section className="tarjeta">
           <label style={{ marginBottom: '8px' }}>Navegación semanal rápida</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
-            {[
-              { numero: 1, nombre: 'Lun' },
-              { numero: 2, nombre: 'Mar' },
-              { numero: 3, nombre: 'Mié' },
-              { numero: 4, nombre: 'Jue' },
-              { numero: 5, nombre: 'Vie' },
-              { numero: 6, nombre: 'Sáb' },
-              { numero: 0, nombre: 'Dom' }
-            ].map(d => (
+            {DIAS_SHORT.map(d => (
               <button
                 key={d.numero}
                 type="button"
@@ -1144,20 +882,13 @@ export default function AdminPage() {
         </section>
 
         {/* CREAR TURNO */}
-
         <section className="tarjeta">
-
-          <h2>
-            ➕ Crear turno
-          </h2>
+          <h2>➕ Crear turno</h2>
 
           <div className="tabsTipo">
-
             <button
               type="button"
-              className={
-                `tabTipo ${tipoTurno === 'casual' ? 'activo' : ''}`
-              }
+              className={`tabTipo ${tipoTurno === 'casual' ? 'activo' : ''}`}
               onClick={() => setTipoTurno('casual')}
             >
               🟢 Turno casual
@@ -1165,14 +896,11 @@ export default function AdminPage() {
 
             <button
               type="button"
-              className={
-                `tabTipo ${tipoTurno === 'fijo' ? 'activo' : ''}`
-              }
+              className={`tabTipo ${tipoTurno === 'fijo' ? 'activo' : ''}`}
               onClick={() => setTipoTurno('fijo')}
             >
               🔵 Turno fijo
             </button>
-
           </div>
 
           <form
@@ -1182,779 +910,301 @@ export default function AdminPage() {
                 : crearTurnoFijo
             }
           >
-
             <div className="campo">
-
-              <label>
-                Cancha
-              </label>
-
+              <label>Cancha</label>
               <select
                 value={canchaId}
-                onChange={(e) =>
-                  setCanchaId(e.target.value)
-                }
+                onChange={(e) => setCanchaId(e.target.value)}
               >
-
-                <option value="">
-                  Seleccionar cancha
-                </option>
-
+                <option value="">Seleccionar cancha</option>
                 {canchas.map(c => (
-
-                  <option
-                    key={c.id}
-                    value={c.id}
-                  >
+                  <option key={c.id} value={c.id}>
                     {nombreCancha(c.id)}
                   </option>
-
                 ))}
-
               </select>
-
             </div>
 
             <div className="fila">
-
               <div className="campo">
-
-                <label>
-                  Cliente
-                </label>
-
+                <label>Cliente</label>
                 <input
                   value={clienteNombre}
-                  onChange={(e) =>
-                    setClienteNombre(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setClienteNombre(e.target.value)}
                   placeholder="Nombre"
                 />
-
               </div>
 
               <div className="campo">
-
-                <label>
-                  WhatsApp
-                </label>
-
+                <label>WhatsApp</label>
                 <input
                   value={clienteTelefono}
-                  onChange={(e) =>
-                    setClienteTelefono(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setClienteTelefono(e.target.value)}
                   placeholder="Teléfono"
                 />
-
               </div>
-
             </div>
 
             {tipoTurno === 'casual' ? (
-
               <>
-
                 <div className="fila">
-
                   <div className="campo">
-
-                    <label>
-                      Fecha
-                    </label>
-
+                    <label>Fecha</label>
                     <input
                       type="date"
                       value={fechaCasual}
-                      onChange={(e) =>
-                        setFechaCasual(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setFechaCasual(e.target.value)}
                     />
-
                   </div>
 
                   <div className="campo">
-
-                    <label>
-                      Hora de inicio
-                    </label>
-
+                    <label>Hora de inicio (Disponibles)</label>
                     <select
                       value={horaCasual}
-                      onChange={(e) =>
-                        setHoraCasual(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setHoraCasual(e.target.value)}
                     >
-
-                      <option value="">
-                        Elegir horario
-                      </option>
-
-                      {HORARIOS.map(hora => (
-
-                        <option
-                          key={hora}
-                          value={hora}
-                        >
+                      <option value="">Elegir horario disponible</option>
+                      {horariosDisponiblesCasual.map(hora => (
+                        <option key={hora} value={hora}>
                           {hora}
                         </option>
-
                       ))}
-
                     </select>
-
                   </div>
-
                 </div>
 
                 <div className="campo">
-
-                  <label>
-                    Duración
-                  </label>
-
+                  <label>Duración</label>
                   <select
                     value={duracionCasual}
-                    onChange={(e) =>
-                      setDuracionCasual(
-                        Number(
-                          e.target.value
-                        )
-                      )
-                    }
+                    onChange={(e) => setDuracionCasual(Number(e.target.value))}
                   >
-
                     {DURACIONES.map(minutos => (
-
-                      <option
-                        key={minutos}
-                        value={minutos}
-                      >
+                      <option key={minutos} value={minutos}>
                         {labelDuracion(minutos)}
                       </option>
-
                     ))}
-
                   </select>
-
                 </div>
-
               </>
-
             ) : (
-
               <>
-
                 <div className="fila">
-
                   <div className="campo">
-
-                    <label>
-                      Desde
-                    </label>
-
+                    <label>Desde</label>
                     <input
                       type="date"
                       value={fechaDesde}
-                      onChange={(e) =>
-                        setFechaDesde(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setFechaDesde(e.target.value)}
                     />
-
                   </div>
 
                   <div className="campo">
-
-                    <label>
-                      Hasta
-                    </label>
-
+                    <label>Hasta</label>
                     <input
                       type="date"
                       value={fechaHasta}
-                      onChange={(e) =>
-                        setFechaHasta(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setFechaHasta(e.target.value)}
                     />
-
                   </div>
-
                 </div>
 
                 <div className="campo">
-
-                  <label>
-                    Días (se va a repetir automáticamente cada semana en los días marcados, dentro del rango de fechas)
-                  </label>
-
+                  <label>Días de la semana</label>
                   <div className="dias">
-
-                    {DIAS.map(dia => (
-
+                    {DIAS_SHORT.map(dia => (
                       <button
                         type="button"
                         key={dia.numero}
-                        className={
-                          `dia ${
-                            diasSeleccionados.includes(
-                              dia.numero
-                            )
-                              ? 'activo'
-                              : ''
-                          }`
-                        }
-                        onClick={() =>
-                          cambiarDia(
-                            dia.numero
-                          )
-                        }
+                        className={`dia ${diasSeleccionados.includes(dia.numero) ? 'activo' : ''}`}
+                        onClick={() => cambiarDia(dia.numero)}
                       >
-
-                        {diasSeleccionados.includes(
-                          dia.numero
-                        )
-                          ? '✓ '
-                          : ''}
-
+                        {diasSeleccionados.includes(dia.numero) ? '✓ ' : ''}
                         {dia.nombre}
-
                       </button>
-
                     ))}
-
                   </div>
-
                 </div>
 
                 <div className="fila">
-
                   <div className="campo">
-
-                    <label>
-                      Hora de inicio
-                    </label>
-
+                    <label>Hora de inicio (Disponibles)</label>
                     <select
                       value={horaFijo}
-                      onChange={(e) =>
-                        setHoraFijo(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setHoraFijo(e.target.value)}
                     >
-
-                      {HORARIOS.map(hora => (
-
-                        <option
-                          key={hora}
-                          value={hora}
-                        >
+                      {horariosDisponiblesFijo.map(hora => (
+                        <option key={hora} value={hora}>
                           {hora}
                         </option>
-
                       ))}
-
                     </select>
-
                   </div>
 
                   <div className="campo">
-
-                    <label>
-                      Duración
-                    </label>
-
+                    <label>Duración</label>
                     <select
                       value={duracionFijo}
-                      onChange={(e) =>
-                        setDuracionFijo(
-                          Number(
-                            e.target.value
-                          )
-                        )
-                      }
+                      onChange={(e) => setDuracionFijo(Number(e.target.value))}
                     >
-
                       {DURACIONES.map(minutos => (
-
-                        <option
-                          key={minutos}
-                          value={minutos}
-                        >
+                        <option key={minutos} value={minutos}>
                           {labelDuracion(minutos)}
                         </option>
-
                       ))}
-
                     </select>
-
                   </div>
-
                 </div>
-
               </>
-
             )}
 
-            <button
-              className="btnPrincipal"
-              disabled={guardando}
-            >
-
+            <button className="btnPrincipal" disabled={guardando}>
               {guardando
                 ? 'Creando...'
                 : tipoTurno === 'casual'
                   ? '➕ Crear turno casual'
                   : '➕ Crear turno fijo'}
-
             </button>
-
           </form>
-
-        </section>
-
-        {/* DISPONIBILIDAD SEMANAL */}
-
-        <section className="tarjeta">
-
-          <h2>
-            📆 Disponibilidad semanal
-          </h2>
-
-          <div className="campo">
-
-            <label>
-              Cancha
-            </label>
-
-            <select
-              value={canchaSemana}
-              onChange={(e) =>
-                setCanchaSemana(e.target.value)
-              }
-            >
-
-              {canchas.map(c => (
-
-                <option
-                  key={c.id}
-                  value={c.id}
-                >
-                  {nombreCancha(c.id)}
-                </option>
-
-              ))}
-
-            </select>
-
-          </div>
-
-          <div className="semanaGrid">
-
-            {diasSemanaFechas.map((fecha, i) => {
-
-              const libres = horariosLibresDia(fecha)
-
-              return (
-
-                <div
-                  className="diaSemana"
-                  key={fecha}
-                >
-
-                  <strong>
-                    {NOMBRES_DIAS_SEMANA[i]}
-                  </strong>
-
-                  <div className="fechaChica">
-                    {fecha.slice(8, 10)}/{fecha.slice(5, 7)}
-                  </div>
-
-                  <div className="cantidadLibre">
-                    {libres.length} libres
-                  </div>
-
-                  <div className="chipsHorarios">
-
-                    {libres.slice(0, 4).map(hora => (
-
-                      <span
-                        className="chip"
-                        key={hora}
-                      >
-                        {hora}
-                      </span>
-
-                    ))}
-
-                    {libres.length > 4 && (
-
-                      <span className="chip">
-                        +{libres.length - 4}
-                      </span>
-
-                    )}
-
-                  </div>
-
-                  <button
-                    className="btnVerDia"
-                    onClick={() =>
-                      setFechaAgenda(fecha)
-                    }
-                  >
-                    Ver agenda
-                  </button>
-
-                </div>
-
-              )
-
-            })}
-
-          </div>
-
         </section>
 
         {/* AGENDA */}
-
         <section className="tarjeta">
-
-          <h2>
-            📅 Agenda
-          </h2>
+          <h2>📅 Agenda</h2>
 
           <div className="agendaHeader">
-
-            <button
-              onClick={() => {
-
-                setFechaAgenda(
-                  sumarDias(fechaAgenda, -1)
-                )
-
-              }}
-            >
+            <button onClick={() => setFechaAgenda(sumarDias(fechaAgenda, -1))}>
               ‹
             </button>
-
-            <div className="fecha">
-              {fechaAgenda}
-            </div>
-
-            <button
-              onClick={() => {
-
-                setFechaAgenda(
-                  sumarDias(fechaAgenda, 1)
-                )
-
-              }}
-            >
+            <div className="fecha">{fechaAgenda}</div>
+            <button onClick={() => setFechaAgenda(sumarDias(fechaAgenda, 1))}>
               ›
             </button>
-
           </div>
 
           {cargando ? (
-
-            <div className="vacio">
-              Cargando...
-            </div>
-
+            <div className="vacio">Cargando...</div>
           ) : (
-
             canchas.map(cancha => {
+              // Filtrar reservas que NO estén pagadas (si están pagadas, se ocultan de la agenda)
+              const reservasCancha = reservasNormales.filter(
+                r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
+              )
 
-              const reservasCancha =
-                reservasNormales.filter(
-                  r =>
-                    Number(
-                      r.cancha_id
-                    ) ===
-                    Number(cancha.id)
-                )
-
-              const fijosCancha =
-                fijosDelDia.filter(
-                  r =>
-                    Number(
-                      r.cancha_id
-                    ) ===
-                    Number(cancha.id)
-                )
+              const fijosCancha = fijosDelDia.filter(
+                r => Number(r.cancha_id) === Number(cancha.id)
+              )
 
               return (
-
-                <div
-                  className="agendaCancha"
-                  key={cancha.id}
-                >
-
-                  <h3>
-                    🎾 {nombreCancha(cancha.id)}
-                  </h3>
+                <div className="agendaCancha" key={cancha.id}>
+                  <h3>🎾 {nombreCancha(cancha.id)}</h3>
 
                   {mostrarFijos && fijosCancha.map(fijo => (
-
-                    <div
-                      className="fijo"
-                      key={`fijo-${fijo.id}`}
-                    >
-
+                    <div className="fijo" key={`fijo-${fijo.id}`}>
                       <strong>
-                        🔵 {fijo.hora_inicio}
-                        {' - '}
-                        {horaFinTurno(fijo)}
+                        🔵 {fijo.hora_inicio} - {horaFinTurno(fijo)}
                       </strong>
-
                       <div className="info">
-
-                        Turno fijo ·{' '}
-                        {fijo.cliente_nombre}
-
-                        {fijo.cliente_telefono
-                          ? ` · ${fijo.cliente_telefono}`
-                          : ''}
-
+                        Turno fijo · {fijo.cliente_nombre}
+                        {fijo.cliente_telefono ? ` · ${fijo.cliente_telefono}` : ''}
                       </div>
-
                       <div className="acciones">
-
                         <button
                           className="btnEliminar"
-                          onClick={() =>
-                            eliminarTurnoFijo(
-                              fijo.id
-                            )
-                          }
+                          onClick={() => eliminarTurnoFijo(fijo.id)}
                         >
                           🗑️ Eliminar fijo
                         </button>
-
                       </div>
-
                     </div>
-
                   ))}
 
-                  {mostrarReservas && reservasCancha.map(reserva => (
-
-                    <div
-                      className="reserva"
-                      key={reserva.id}
-                    >
-
+                  {reservasCancha.map(reserva => (
+                    <div className="reserva" key={reserva.id}>
                       <strong>
                         🟢 {reserva.hora_inicio}
-                        {reserva.hora_fin
-                          ? ` - ${reserva.hora_fin}`
-                          : ''}
+                        {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
                       </strong>
-
                       <div className="info">
-
-                        Cliente:{' '}
-                        {reserva.cliente_nombre ||
-                          'Sin nombre'}
-
-                        {reserva.cliente_telefono
-                          ? ` · ${reserva.cliente_telefono}`
-                          : ''}
-
+                        Cliente: {reserva.cliente_nombre || 'Sin nombre'}
+                        {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
                       </div>
-
                       <div className="acciones">
-
                         <button
-                          className={
-                            `btnPago ${
-                              reserva.pago_confirmado
-                                ? 'pagado'
-                                : 'pendiente'
-                            }`
-                          }
-                          onClick={() =>
-                            cambiarPago(
-                              reserva.id,
-                              reserva.pago_confirmado
-                            )
-                          }
+                          className="btnPago pendiente"
+                          onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
                         >
-
-                          {reserva.pago_confirmado
-                            ? '✓ Pagado'
-                            : '⚡ Confirmar pago'}
-
+                          ⚡ Confirmar pago
                         </button>
 
                         <button
                           className="btnEliminar"
-                          onClick={() =>
-                            cancelarReserva(
-                              reserva.id
-                            )
-                          }
+                          onClick={() => cancelarReserva(reserva.id)}
                         >
                           🗑️ Liberar turno
                         </button>
-
                       </div>
-
                     </div>
-
                   ))}
 
-                  {reservasCancha.length === 0 &&
-                    fijosCancha.length === 0 && (
-
-                      <div className="vacio">
-                        No hay reservas.
-                      </div>
-
-                    )}
-
+                  {reservasCancha.length === 0 && fijosCancha.length === 0 && (
+                    <div className="vacio">No hay reservas pendientes.</div>
+                  )}
                 </div>
-
               )
-
             })
-
           )}
-
         </section>
 
-        {/* TURNOS FIJOS, SEPARADOS POR CANCHA */}
-
+        {/* TURNOS FIJOS, SEPARADOS POR DÍA DE LA SEMANA */}
         <section className="tarjeta">
-
           <button
             className="toggle"
-            onClick={() =>
-              setMostrarFijos(
-                !mostrarFijos
-              )
-            }
+            onClick={() => setMostrarFijos(!mostrarFijos)}
           >
-            🔵 Turnos fijos activos
-            {' '}
-            ({turnosFijos.length})
-            {' '}
-            {mostrarFijos ? '▲' : '▼'}
+            🔵 Turnos fijos activos ({turnosFijos.length}) {mostrarFijos ? '▲' : '▼'}
           </button>
 
-          {mostrarFijos && canchas.map(cancha => {
-
-            const fijosCancha = turnosFijos.filter(
-              t => Number(t.cancha_id) === Number(cancha.id)
+          {mostrarFijos && DIAS.map(diaInfo => {
+            const fijosDelDiaSemana = turnosFijos.filter(
+              t => Array.isArray(t.dias_semana) && t.dias_semana.includes(diaInfo.numero)
             )
 
             return (
+              <div className="grupoCancha" key={diaInfo.numero}>
+                <h3>📅 {diaInfo.nombre} ({fijosDelDiaSemana.length})</h3>
 
-              <div
-                className="grupoCancha"
-                key={cancha.id}
-              >
-
-                <h3>
-                  🎾 {nombreCancha(cancha.id)} ({fijosCancha.length})
-                </h3>
-
-                {fijosCancha.length === 0 && (
-
-                  <div className="vacio">
-                    Sin turnos fijos en esta cancha.
-                  </div>
-
+                {fijosDelDiaSemana.length === 0 && (
+                  <div className="vacio">Sin turnos fijos los días {diaInfo.nombre.toLowerCase()}.</div>
                 )}
 
-                {fijosCancha.map(fijo => (
-
-                  <div
-                    className="fijo"
-                    key={fijo.id}
-                  >
-
+                {fijosDelDiaSemana.map(fijo => (
+                  <div className="fijo" key={fijo.id}>
                     <strong>
-                      {fijo.hora_inicio}
-                      {' - '}
-                      {horaFinTurno(fijo)}
+                      🎾 {nombreCancha(fijo.cancha_id)} — {fijo.hora_inicio} a {horaFinTurno(fijo)}
                     </strong>
-
                     <div className="info">
-
-                      {fijo.cliente_nombre}
-
-                      {' · '}
-
-                      {fijo.fecha_desde}
-                      {' → '}
-                      {fijo.fecha_hasta}
-
+                      👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
+                      {fijo.cliente_telefono ? ` · 📞 ${fijo.cliente_telefono}` : ' · 📞 Sin teléfono'}
                     </div>
-
                     <div className="info">
-
-                      Días:{' '}
-
-                      {Array.isArray(
-                        fijo.dias_semana
-                      )
-                        ? fijo.dias_semana
-                            .map(
-                              d =>
-                                DIAS.find(
-                                  dia =>
-                                    dia.numero ===
-                                    Number(d)
-                                )?.nombre
-                            )
-                            .join(', ')
-                        : 'Sin días'}
-
+                      🗓️ <strong>Vigencia:</strong> {fijo.fecha_desde} → {fijo.fecha_hasta}
                     </div>
-
                     <div className="acciones">
-
                       <button
                         className="btnEliminar"
-                        onClick={() =>
-                          eliminarTurnoFijo(
-                            fijo.id
-                          )
-                        }
+                        onClick={() => eliminarTurnoFijo(fijo.id)}
                       >
                         🗑️ Eliminar turno fijo
                       </button>
-
                     </div>
-
                   </div>
-
                 ))}
-
               </div>
-
             )
-
           })}
-
         </section>
-
       </div>
-
     </main>
   )
 }
