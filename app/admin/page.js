@@ -346,7 +346,14 @@ export default function AdminPage() {
     const coincideDia = Array.isArray(turno.dias_semana) && turno.dias_semana.includes(dia)
     if (!coincideDia) return false
 
-    const estaBloqueado = reservas.some(r => {
+    return true
+  }
+
+  function estaTurnoFijoLiberadoEnFecha(
+    turno,
+    fecha
+  ) {
+    return reservas.some(r => {
       if (r.estado !== 'bloqueado') return false
       if (Number(r.cancha_id) !== Number(turno.cancha_id)) return false
       if (r.fecha !== fecha) return false
@@ -359,8 +366,6 @@ export default function AdminPage() {
 
       return inicioFijo < finBloqueo && finFijo > inicioBloqueo
     })
-
-    return !estaBloqueado
   }
 
   function horaFinTurno(turno) {
@@ -394,6 +399,15 @@ export default function AdminPage() {
 
       if (
         !turnoFijoCoincideConFecha(
+          t,
+          fecha
+        )
+      ) {
+        return false
+      }
+
+      if (
+        estaTurnoFijoLiberadoEnFecha(
           t,
           fecha
         )
@@ -515,6 +529,15 @@ export default function AdminPage() {
 
         if (
           !turnoFijoCoincideConFecha(
+            t,
+            fechaSel
+          )
+        ) {
+          return false
+        }
+
+        if (
+          estaTurnoFijoLiberadoEnFecha(
             t,
             fechaSel
           )
@@ -1007,6 +1030,37 @@ export default function AdminPage() {
   }
 
   async function liberarTurnoFijoPorDia(fijo, fechaAgendaActual) {
+    const yaLiberado = estaTurnoFijoLiberadoEnFecha(fijo, fechaAgendaActual)
+
+    if (yaLiberado) {
+      const confirmar = confirm(
+        `Este turno ya está liberado para el día ${fechaAgendaActual}. ¿Querés volver a activarlo?`
+      )
+      if (!confirmar) return
+
+      setGuardando(true)
+      try {
+        const { error } = await supabase
+          .from('reservas')
+          .delete()
+          .eq('cancha_id', fijo.cancha_id)
+          .eq('fecha', fechaAgendaActual)
+          .eq('estado', 'bloqueado')
+          .eq('hora_inicio', fijo.hora_inicio)
+
+        if (error) throw error
+
+        alert('✅ Turno reactivado correctamente para este día.')
+        await cargarDatos()
+      } catch (error) {
+        console.error(error)
+        alert('No se pudo reactivar el turno:\n\n' + error.message)
+      } finally {
+        setGuardando(false)
+      }
+      return
+    }
+
     const confirmar = confirm(
       `¿Querés liberar este turno fijo solamente para el día ${fechaAgendaActual}?\n\n` +
       `Cliente: ${fijo.cliente_nombre}\n` +
@@ -1354,6 +1408,15 @@ export default function AdminPage() {
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 8px;
+        }
+
+        .fijoLiberado {
+          background: #162016;
+          border-left: 4px solid #22c55e;
+          padding: 12px;
+          border-radius: 10px;
+          margin-bottom: 8px;
+          opacity: 0.95;
         }
 
         .info {
@@ -2666,106 +2729,126 @@ export default function AdminPage() {
                       )}
 
                       {fijosFiltrados.map(
-                        fijo => (
-                          <div
-                            className="fijo"
-                            key={fijo.id}
-                          >
+                        fijo => {
+                          const estaLiberadoHoy = estaTurnoFijoLiberadoEnFecha(fijo, fechaAgenda)
 
-                            <strong>
-                              ⏰{' '}
-                              {fijo.hora_inicio}
-
-                              {' a '}
-
-                              {horaFinTurno(
-                                fijo
-                              )}
-                            </strong>
-
+                          return (
                             <div
-                              className="info"
-                              style={{
-                                display:
-                                  'flex',
-                                alignItems:
-                                  'center',
-                                flexWrap:
-                                  'wrap',
-                                gap: '4px'
-                              }}
+                              className={estaLiberadoHoy ? "fijoLiberado" : "fijo"}
+                              key={fijo.id}
                             >
 
-                              👤{' '}
-
                               <strong>
-                                Cliente:
-                              </strong>{' '}
+                                ⏰{' '}
+                                {fijo.hora_inicio}
 
-                              {
-                                fijo.cliente_nombre
-                              }
+                                {' a '}
 
-                              {fijo.cliente_telefono ? (
-                                <>
+                                {horaFinTurno(
+                                  fijo
+                                )}
+                              </strong>
+
+                              <div
+                                className="info"
+                                style={{
+                                  display:
+                                    'flex',
+                                  alignItems:
+                                    'center',
+                                  flexWrap:
+                                    'wrap',
+                                  gap: '4px'
+                                }}
+                              >
+
+                                👤{' '}
+
+                                <strong>
+                                  Cliente:
+                                </strong>{' '}
+
+                                {
+                                  fijo.cliente_nombre
+                                }
+
+                                {fijo.cliente_telefono ? (
+                                  <>
+                                    <span>
+                                      · 📞{' '}
+                                      {
+                                        fijo.cliente_telefono
+                                      }
+                                    </span>
+
+                                    <a
+                                      href={`https://wa.me/${telefonoWhatsAppArgentina(
+                                        fijo.cliente_telefono
+                                      )}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btnWsp"
+                                    >
+                                      💬 WhatsApp
+                                    </a>
+                                  </>
+                                ) : (
                                   <span>
-                                    · 📞{' '}
-                                    {
-                                      fijo.cliente_telefono
-                                    }
+                                    · 📞 Sin
+                                    teléfono
                                   </span>
+                                )}
 
-                                  <a
-                                    href={`https://wa.me/${telefonoWhatsAppArgentina(
-                                      fijo.cliente_telefono
-                                    )}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btnWsp"
-                                  >
-                                    💬 WhatsApp
-                                  </a>
-                                </>
-                              ) : (
-                                <span>
-                                  · 📞 Sin
-                                  teléfono
-                                </span>
+                              </div>
+
+                              {estaLiberadoHoy && (
+                                <div
+                                  className="info"
+                                  style={{
+                                    color: '#22c55e',
+                                    fontWeight: 'bold',
+                                    marginTop: '6px'
+                                  }}
+                                >
+                                  🟢 Liberado solo por {fechaAgenda}
+                                </div>
                               )}
 
+                              <div className="acciones">
+
+                                <button
+                                  className="btnEliminar"
+                                  style={{
+                                    borderColor: estaLiberadoHoy ? '#22c55e' : '#eab308',
+                                    color: estaLiberadoHoy ? '#22c55e' : '#eab308'
+                                  }}
+                                  disabled={guardando}
+                                  onClick={() =>
+                                    liberarTurnoFijoPorDia(
+                                      fijo,
+                                      fechaAgenda
+                                    )
+                                  }
+                                >
+                                  {estaLiberadoHoy ? `✅ Activar nuevamente (${fechaAgenda})` : `🔓 Liberar solo este día (${fechaAgenda})`}
+                                </button>
+
+                                <button
+                                  className="btnEliminar"
+                                  onClick={() =>
+                                    eliminarTurnoFijo(
+                                      fijo.id
+                                    )
+                                  }
+                                >
+                                  🗑️ Eliminar definitivo
+                                </button>
+
+                              </div>
+
                             </div>
-
-                            <div className="acciones">
-
-                              <button
-                                className="btnEliminar"
-                                style={{ borderColor: '#eab308', color: '#eab308' }}
-                                disabled={guardando}
-                                onClick={() =>
-                                  liberarTurnoFijoPorDia(
-                                    fijo,
-                                    fechaAgenda
-                                  )
-                                }
-                              >
-                                🔓 Liberar solo este día ({fechaAgenda})
-                              </button>
-
-                              <button
-                                className="btnEliminar"
-                                onClick={() =>
-                                  eliminarTurnoFijo(
-                                    fijo.id
-                                  )
-                                }
-                              >
-                                🗑️ Eliminar definitivo
-                              </button>
-
-                            </div>
-
-                          </div>
-                        )
+                          )
+                        }
                       )}
 
                     </div>
