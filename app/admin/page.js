@@ -104,10 +104,15 @@ export default function AdminPage() {
 
   const [canchaId, setCanchaId] = useState('')
 
-  // Filtros de visualización para la agenda y turnos fijos
+  // Filtros de visualización para la agenda, turnos fijos y casuales confirmados
   const [canchaAgendaFiltro, setCanchaAgendaFiltro] = useState('todas')
   const [canchaFijosFiltro, setCanchaFijosFiltro] = useState('')
   const [diaFijosFiltro, setDiaFijosFiltro] = useState(1)
+
+  // Filtros para la sección de casuales confirmados (similar a fijos)
+  const [canchaCasualesConfirmadosFiltro, setCanchaCasualesConfirmadosFiltro] = useState('')
+  const [fechaCasualesConfirmadosFiltro, setFechaCasualesConfirmadosFiltro] = useState(hoyLocal())
+  const [mostrarCasualesConfirmados, setMostrarCasualesConfirmados] = useState(true)
 
   const [tipoTurno, setTipoTurno] = useState('casual')
 
@@ -186,6 +191,10 @@ export default function AdminPage() {
 
       if (!canchaFijosFiltro && dataCanchas && dataCanchas.length > 0) {
         setCanchaFijosFiltro(String(dataCanchas[0].id))
+      }
+
+      if (!canchaCasualesConfirmadosFiltro && dataCanchas && dataCanchas.length > 0) {
+        setCanchaCasualesConfirmadosFiltro(String(dataCanchas[0].id))
       }
 
     } catch (error) {
@@ -449,8 +458,6 @@ export default function AdminPage() {
   }
 
   async function cambiarPago(id, estadoActual) {
-    // Nota: Si en tu base de datos la columna se llama 'pagado' en lugar de 'pago_confirmado',
-    // cambia 'pago_confirmado' por 'pagado' en ambas líneas de abajo.
     const { error } = await supabase
       .from('reservas')
       .update({
@@ -1026,9 +1033,9 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* AGENDA */}
+        {/* AGENDA (SOLO PENDIENTES DE PAGO) */}
         <section className="tarjeta">
-          <h2>📅 Agenda</h2>
+          <h2>📅 Agenda (Pendientes de pago)</h2>
 
           <div className="agendaHeader">
             <button onClick={() => setFechaAgenda(sumarDias(fechaAgenda, -1))}>
@@ -1065,15 +1072,10 @@ export default function AdminPage() {
                   r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
                 )
 
-                const reservasConfirmadas = reservasNormales.filter(
-                  r => Number(r.cancha_id) === Number(cancha.id) && r.pago_confirmado
-                )
-
                 return (
                   <div className="agendaCancha" key={cancha.id}>
                     <h3>🎾 {nombreCancha(cancha.id)}</h3>
 
-                    {/* Pendientes */}
                     {reservasPendientes.map(reserva => (
                       <div className="reserva" key={reserva.id}>
                         <strong>
@@ -1102,51 +1104,118 @@ export default function AdminPage() {
                       </div>
                     ))}
 
-                    {/* Confirmados (Pagados en verde con leyenda Reservado) */}
-                    {reservasConfirmadas.length > 0 && (
-                      <div style={{ marginTop: '10px' }}>
-                        <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginBottom: '6px' }}>
-                          ✅ Turnos confirmados (Pagados)
-                        </div>
-                        {reservasConfirmadas.map(reserva => (
-                          <div className="reservaConfirmada" key={reserva.id}>
-                            <strong>
-                              🟢 {reserva.hora_inicio}
-                              {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
-                            </strong>
-                            <div className="info">
-                              Cliente: {reserva.cliente_nombre || 'Sin nombre'}
-                              {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
-                            </div>
-                            <div className="info" style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                              ✅ Reservado
-                            </div>
-                            <div className="acciones">
-                              <button
-                                className="btnPago pagado"
-                                onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
-                              >
-                                🔄 Deshacer pago
-                              </button>
-
-                              <button
-                                className="btnEliminar"
-                                onClick={() => cancelarReserva(reserva.id)}
-                              >
-                                🗑️ Liberar turno
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {reservasPendientes.length === 0 && reservasConfirmadas.length === 0 && (
-                      <div className="vacio">No hay reservas para esta cancha.</div>
+                    {reservasPendientes.length === 0 && (
+                      <div className="vacio">No hay turnos pendientes de pago en esta cancha para este día.</div>
                     )}
                   </div>
                 )
               })
+          )}
+        </section>
+
+        {/* TURNOS CASUALES CONFIRMADOS / PAGADOS */}
+        <section className="tarjeta">
+          <button
+            className="toggle"
+            onClick={() => setMostrarCasualesConfirmados(!mostrarCasualesConfirmados)}
+          >
+            ✅ Turnos casuales confirmados / pagados {mostrarCasualesConfirmados ? '▲' : '▼'}
+          </button>
+
+          {mostrarCasualesConfirmados && (
+            <>
+              {/* Selector de Cancha */}
+              <div className="campo" style={{ marginTop: '10px' }}>
+                <label>Seleccionar Cancha</label>
+                <select
+                  value={canchaCasualesConfirmadosFiltro}
+                  onChange={(e) => setCanchaCasualesConfirmadosFiltro(e.target.value)}
+                >
+                  {canchas.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {nombreCancha(c.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Fecha */}
+              <div className="campo">
+                <label>Fecha</label>
+                <input
+                  type="date"
+                  value={fechaCasualesConfirmadosFiltro}
+                  onChange={(e) => setFechaCasualesConfirmadosFiltro(e.target.value)}
+                />
+              </div>
+
+              {/* Listado filtrado */}
+              <div style={{ marginTop: '15px' }}>
+                {(() => {
+                  const casualesPagadosFiltrados = reservasNormales.filter(r => {
+                    const coincideCancha = Number(r.cancha_id) === Number(canchaCasualesConfirmadosFiltro)
+                    const coincideFecha = r.fecha === fechaCasualesConfirmadosFiltro
+                    return coincideCancha && coincideFecha && r.pago_confirmado
+                  })
+
+                  return (
+                    <div className="grupoCancha">
+                      <h3>📅 {nombreCancha(canchaCasualesConfirmadosFiltro)} — {fechaCasualesConfirmadosFiltro} ({casualesPagadosFiltrados.length})</h3>
+
+                      {casualesPagadosFiltrados.length === 0 && (
+                        <div className="vacio">No hay turnos casuales pagados para esta fecha en esta cancha.</div>
+                      )}
+
+                      {casualesPagadosFiltrados.map(reserva => (
+                        <div className="reservaConfirmada" key={reserva.id}>
+                          <strong>
+                            🟢 {reserva.hora_inicio}
+                            {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
+                          </strong>
+                          <div className="info" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                            👤 <strong>Cliente:</strong> {reserva.cliente_nombre || 'Sin nombre'}
+                            {reserva.cliente_telefono ? (
+                              <>
+                                <span>· 📞 {reserva.cliente_telefono}</span>
+                                <a
+                                  href={`https://wa.me/${reserva.cliente_telefono.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btnWsp"
+                                  title="Enviar mensaje por WhatsApp"
+                                >
+                                  💬 WhatsApp
+                                </a>
+                              </>
+                            ) : (
+                              <span>· 📞 Sin teléfono</span>
+                            )}
+                          </div>
+                          <div className="info" style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                            ✅ Pagado y Confirmado
+                          </div>
+                          <div className="acciones">
+                            <button
+                              className="btnPago pagado"
+                              onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
+                            >
+                              🔄 Deshacer pago
+                            </button>
+
+                            <button
+                              className="btnEliminar"
+                              onClick={() => cancelarReserva(reserva.id)}
+                            >
+                              🗑️ Liberar turno
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            </>
           )}
         </section>
 
@@ -1258,4 +1327,3 @@ export default function AdminPage() {
     </main>
   )
 }
-
