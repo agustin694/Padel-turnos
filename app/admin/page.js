@@ -716,8 +716,8 @@ export default function AdminPage() {
                 clienteNombre.trim(),
               cliente_telefono:
                 clienteTelefono.trim() || null,
-              estado: 'pendiente_pago',
-              pago_confirmado: false,
+              estado: 'confirmada', // Guardado directamente como confirmado
+              pago_confirmado: true,
               tipo: 'normal'
             }
           ])
@@ -733,6 +733,9 @@ export default function AdminPage() {
       setHoraCasual('')
 
       await cargarDatos()
+      if (buscarReservasAbierto) {
+        consultarFechaFutura(fechaConsultaFutura)
+      }
     } catch (error) {
       console.error(error)
 
@@ -915,6 +918,9 @@ export default function AdminPage() {
       setDiasSeleccionados([])
 
       await cargarDatos()
+      if (buscarReservasAbierto) {
+        consultarFechaFutura(fechaConsultaFutura)
+      }
     } catch (error) {
       console.error(error)
 
@@ -1059,6 +1065,9 @@ export default function AdminPage() {
       )
 
       await cargarDatos()
+      if (buscarReservasAbierto) {
+        consultarFechaFutura(fechaConsultaFutura)
+      }
     } catch (error) {
       console.error(error)
 
@@ -1099,10 +1108,13 @@ export default function AdminPage() {
     )
 
     await cargarDatos()
+    if (buscarReservasAbierto) {
+      consultarFechaFutura(fechaConsultaFutura)
+    }
   }
 
   async function liberarTurnoFijoPorDia(fijo, fechaAgendaActual) {
-    const yaLiberado = estaTurnoFijoLiberadoEnFecha(fijo, fechaAgendaActual)
+    const yaLiberado = estaTurnoFijoLiberadoEnFechaConLista(fijo, fechaAgendaActual, reservasFuturasConsulta)
 
     if (yaLiberado) {
       const confirmar = confirm(
@@ -1124,6 +1136,9 @@ export default function AdminPage() {
 
         alert('✅ Turno reactivado correctamente para este día.')
         await cargarDatos()
+        if (buscarReservasAbierto) {
+          consultarFechaFutura(fechaConsultaFutura)
+        }
       } catch (error) {
         console.error(error)
         alert('No se pudo reactivar el turno:\n\n' + error.message)
@@ -1174,6 +1189,9 @@ export default function AdminPage() {
       })
 
       await cargarDatos()
+      if (buscarReservasAbierto) {
+        consultarFechaFutura(fechaConsultaFutura)
+      }
     } catch (error) {
       console.error(error)
       alert('No se pudo liberar el turno para este día:\n\n' + error.message)
@@ -1190,7 +1208,7 @@ export default function AdminPage() {
 
     if (!confirmar) return
 
-    const reservaAEliminar = reservas.find(r => r.id === id)
+    const reservaAEliminar = reservasFuturasConsulta.find(r => r.id === id) || reservas.find(r => r.id === id)
 
     const { error } =
       await supabase
@@ -1220,6 +1238,9 @@ export default function AdminPage() {
     }
 
     await cargarDatos()
+    if (buscarReservasAbierto) {
+      consultarFechaFutura(fechaConsultaFutura)
+    }
   }
 
   async function cambiarPago(
@@ -1255,6 +1276,9 @@ export default function AdminPage() {
     }
 
     await cargarDatos()
+    if (buscarReservasAbierto) {
+      consultarFechaFutura(fechaConsultaFutura)
+    }
   }
 
   const reservasNormales =
@@ -3083,7 +3107,7 @@ export default function AdminPage() {
 
         </section>
 
-        {/* NUEVO ÍTEM: Búsqueda de reservas en próximas semanas (Colapsable y ubicado al final) */}
+        {/* Búsqueda de reservas en próximas semanas (Actualizado con sólo confirmadas y botones de Eliminar / Poner Fijo al lado de WhatsApp) */}
         <section className="tarjeta" style={{ border: '1px solid #38bdf8' }}>
           <button
             className="toggle"
@@ -3097,7 +3121,7 @@ export default function AdminPage() {
           {buscarReservasAbierto && (
             <div style={{ marginTop: '10px' }}>
               <p style={{ fontSize: '12px', color: '#afc0b8', marginBottom: '12px' }}>
-                Seleccioná cualquier fecha futura (de acá a un mes o más) para saber exactamente quién reservó ese día.
+                Seleccioná cualquier fecha futura (de acá a un mes o más) para ver los turnos confirmados y fijos vigentes.
               </p>
 
               <div className="campo" style={{ marginBottom: '14px' }}>
@@ -3119,8 +3143,9 @@ export default function AdminPage() {
                   </h3>
 
                   {canchas.map(cancha => {
+                    // Filtrar SOLO turnos casuales confirmados (excluyendo pendientes y bloqueados)
                     const casualesDia = reservasFuturasConsulta.filter(
-                      r => Number(r.cancha_id) === Number(cancha.id) && r.estado !== 'bloqueado'
+                      r => Number(r.cancha_id) === Number(cancha.id) && r.estado === 'confirmada'
                     )
 
                     const fijosDia = turnosFijosFuturosConsulta.filter(f => {
@@ -3137,11 +3162,11 @@ export default function AdminPage() {
                         </h4>
 
                         {totalTurnosCancha === 0 && (
-                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin reservas para esta fecha.</div>
+                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin reservas confirmadas para esta fecha.</div>
                         )}
 
                         {casualesDia.map(r => (
-                          <div key={r.id} className="reserva" style={{ padding: '8px 10px', marginBottom: '6px' }}>
+                          <div key={r.id} className="reservaConfirmada" style={{ padding: '10px', marginBottom: '8px' }}>
                             <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
                               🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''}
                             </div>
@@ -3149,44 +3174,93 @@ export default function AdminPage() {
                               👤 <strong>{r.cliente_nombre || 'Sin nombre'}</strong> 
                               {r.cliente_telefono ? ` · 📞 ${r.cliente_telefono}` : ''}
                             </div>
-                            {r.cliente_telefono && (
-                              <div style={{ marginTop: '4px' }}>
+
+                            {/* Botonera con WhatsApp, Poner Fijo y Eliminar al lado */}
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                              {r.cliente_telefono && (
                                 <a
                                   href={`https://wa.me/${telefonoWhatsAppArgentina(r.cliente_telefono)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btnWsp"
+                                  style={{ margin: 0 }}
                                 >
                                   💬 WhatsApp
                                 </a>
-                              </div>
-                            )}
+                              )}
+
+                              <button
+                                className="btnFijo"
+                                style={{ padding: '5px 8px', fontSize: '11px' }}
+                                disabled={guardando}
+                                onClick={() => pasarCasualAFijo(r)}
+                              >
+                                🟡 Poner fijo
+                              </button>
+
+                              <button
+                                className="btnEliminar"
+                                style={{ padding: '5px 8px', fontSize: '11px' }}
+                                onClick={() => cancelarReserva(r.id)}
+                              >
+                                🗑️ Eliminar
+                              </button>
+                            </div>
                           </div>
                         ))}
 
-                        {fijosDia.map(f => (
-                          <div key={f.id} className="fijo" style={{ padding: '8px 10px', marginBottom: '6px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                              🔵 Fijo: {formatearHora(f.hora_inicio)} - {formatearHora(horaFinTurno(f))}
-                            </div>
-                            <div className="info" style={{ fontSize: '11px' }}>
-                              👤 <strong>{f.cliente_nombre || 'Sin nombre'}</strong> 
-                              {f.cliente_telefono ? ` · 📞 ${f.cliente_telefono}` : ''}
-                            </div>
-                            {f.cliente_telefono && (
-                              <div style={{ marginTop: '4px' }}>
-                                <a
-                                  href={`https://wa.me/${telefonoWhatsAppArgentina(f.cliente_telefono)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btnWsp"
-                                >
-                                  💬 WhatsApp
-                                </a>
+                        {fijosDia.map(f => {
+                          const estaLiberadoConsulta = estaTurnoFijoLiberadoEnFechaConLista(f, fechaConsultaFutura, reservasFuturasConsulta)
+
+                          return (
+                            <div key={f.id} className={estaLiberadoConsulta ? "fijoLiberado" : "fijo"} style={{ padding: '10px', marginBottom: '8px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                                🔵 Fijo: {formatearHora(f.hora_inicio)} - {formatearHora(horaFinTurno(f))}
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              <div className="info" style={{ fontSize: '11px' }}>
+                                👤 <strong>{f.cliente_nombre || 'Sin nombre'}</strong> 
+                                {f.cliente_telefono ? ` · 📞 ${f.cliente_telefono}` : ''}
+                              </div>
+
+                              {/* Botonera con WhatsApp, Liberar solo este día y Eliminar definitivo al lado */}
+                              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                                {f.cliente_telefono && (
+                                  <a
+                                    href={`https://wa.me/${telefonoWhatsAppArgentina(f.cliente_telefono)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btnWsp"
+                                    style={{ margin: 0 }}
+                                  >
+                                    💬 WhatsApp
+                                  </a>
+                                )}
+
+                                <button
+                                  className="btnEliminar"
+                                  style={{
+                                    borderColor: estaLiberadoConsulta ? '#22c55e' : '#eab308',
+                                    color: estaLiberadoConsulta ? '#22c55e' : '#eab308',
+                                    padding: '5px 8px',
+                                    fontSize: '11px'
+                                  }}
+                                  disabled={guardando}
+                                  onClick={() => liberarTurnoFijoPorDia(f, fechaConsultaFutura)}
+                                >
+                                  {estaLiberadoConsulta ? '✅ Reactivar' : '🔓 Liberar este día'}
+                                </button>
+
+                                <button
+                                  className="btnEliminar"
+                                  style={{ padding: '5px 8px', fontSize: '11px' }}
+                                  onClick={() => eliminarTurnoFijo(f.id)}
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     )
                   })}
