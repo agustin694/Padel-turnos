@@ -3,819 +3,444 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function Home() {
+const WHATSAPP = '5491122408566'
 
-  // =====================================================
-  // ESTADOS
-  // =====================================================
+const HORARIOS = (() => {
+  const horarios = []
+
+  for (let minutos = 7 * 60; minutos <= 25 * 60; minutos += 30) {
+    const hora = Math.floor(minutos / 60) % 24
+    const minuto = minutos % 60
+
+    horarios.push(
+      `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`
+    )
+  }
+
+  return horarios
+})()
+
+const DIAS = [
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo'
+]
+
+function fechaLocal() {
+  const ahora = new Date()
+
+  const año = ahora.getFullYear()
+  const mes = String(ahora.getMonth() + 1).padStart(2, '0')
+  const dia = String(ahora.getDate()).padStart(2, '0')
+
+  return `${año}-${mes}-${dia}`
+}
+
+function formatearFecha(fecha) {
+  if (!fecha) return ''
+
+  const [año, mes, dia] = fecha.split('-')
+
+  return new Date(
+    Number(año),
+    Number(mes) - 1,
+    Number(dia)
+  ).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+}
+
+function sumarDias(fecha, cantidad) {
+  const fechaObj = new Date(`${fecha}T12:00:00`)
+  fechaObj.setDate(fechaObj.getDate() + cantidad)
+
+  const año = fechaObj.getFullYear()
+  const mes = String(fechaObj.getMonth() + 1).padStart(2, '0')
+  const dia = String(fechaObj.getDate()).padStart(2, '0')
+
+  return `${año}-${mes}-${dia}`
+}
+
+function obtenerDiaSemana(fecha) {
+  const [año, mes, dia] = fecha.split('-')
+
+  const fechaObj = new Date(
+    Number(año),
+    Number(mes) - 1,
+    Number(dia)
+  )
+
+  let numero = fechaObj.getDay()
+
+  if (numero === 0) numero = 7
+
+  return numero
+}
+
+function obtenerNombreDia(fecha) {
+  const numero = obtenerDiaSemana(fecha)
+
+  return DIAS[numero - 1]
+}
+
+function agregarMinutos(hora, minutos) {
+  const [h, m] = hora.split(':').map(Number)
+
+  const total = h * 60 + m + minutos
+
+  const horaFinal = Math.floor(total / 60) % 24
+  const minutoFinal = total % 60
+
+  return `${String(horaFinal).padStart(2, '0')}:${String(minutoFinal).padStart(2, '0')}`
+}
+
+function dinero(valor) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0
+  }).format(Number(valor || 0))
+}
+
+export default function Home() {
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(fechaLocal())
 
   const [canchas, setCanchas] = useState([])
-  const [canchaSeleccionada, setCanchaSeleccionada] = useState(null)
+  const [canchaSeleccionada, setCanchaSeleccionada] = useState('')
 
-  const [diaSeleccionado, setDiaSeleccionado] =
-    useState(diaActual())
+  const [reservas, setReservas] = useState([])
 
-  const [fecha, setFecha] =
-    useState(fechaParaDia(diaActual()))
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
 
-  const [horarios, setHorarios] = useState([])
-  const [horarioSeleccionado, setHorarioSeleccionado] =
-    useState(null)
+  const [horarioSeleccionado, setHorarioSeleccionado] = useState('')
 
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
 
-  const [tipoPago, setTipoPago] =
-    useState('50')
+  const [modalReserva, setModalReserva] = useState(false)
+  const [reservando, setReservando] = useState(false)
 
-  const [cargandoCanchas, setCargandoCanchas] =
-    useState(true)
+  const [reservaCreada, setReservaCreada] = useState(null)
 
-  const [cargandoHorarios, setCargandoHorarios] =
-    useState(false)
-
-  const [reservando, setReservando] =
-    useState(false)
-
-  const [error, setError] = useState('')
-  const [mensaje, setMensaje] = useState('')
-
-  const [comprobante, setComprobante] =
-    useState(null)
-
-
-  // =====================================================
-  // DÍAS
-  // =====================================================
-
-  const dias = [
-    {
-      nombre: 'Lunes',
-      corto: 'Lun',
-      numero: 1
-    },
-    {
-      nombre: 'Martes',
-      corto: 'Mar',
-      numero: 2
-    },
-    {
-      nombre: 'Miércoles',
-      corto: 'Mié',
-      numero: 3
-    },
-    {
-      nombre: 'Jueves',
-      corto: 'Jue',
-      numero: 4
-    },
-    {
-      nombre: 'Viernes',
-      corto: 'Vie',
-      numero: 5
-    },
-    {
-      nombre: 'Sábado',
-      corto: 'Sáb',
-      numero: 6
-    },
-    {
-      nombre: 'Domingo',
-      corto: 'Dom',
-      numero: 0
-    }
-  ]
-
-
-  // =====================================================
-  // DÍA ACTUAL
-  // =====================================================
-
-  function diaActual() {
-
-    const ahora = new Date()
-
-    return ahora.getDay()
-  }
-
-
-  // =====================================================
-  // FECHA PARA UN DÍA
-  // =====================================================
-
-  function fechaParaDia(numeroDia) {
-
-    const hoy = new Date()
-
-    const diaHoy = hoy.getDay()
-
-    let diferencia =
-      numeroDia - diaHoy
-
-    if (diferencia < 0) {
-      diferencia += 7
-    }
-
-    const fecha = new Date(hoy)
-
-    fecha.setDate(
-      hoy.getDate() + diferencia
-    )
-
-    return `${fecha.getFullYear()}-${String(
-      fecha.getMonth() + 1
-    ).padStart(2, '0')}-${String(
-      fecha.getDate()
-    ).padStart(2, '0')}`
-  }
-
-
-  // =====================================================
-  // CAMBIAR DÍA
-  // =====================================================
-
-  function seleccionarDia(numeroDia) {
-
-    setDiaSeleccionado(numeroDia)
-
-    setFecha(
-      fechaParaDia(numeroDia)
-    )
-
-    setHorarioSeleccionado(null)
-
-    setError('')
-    setMensaje('')
-  }
-
-
-  // =====================================================
-  // CARGAR CANCHAS
-  // =====================================================
+  const [pago, setPago] = useState('50')
 
   useEffect(() => {
     cargarCanchas()
   }, [])
 
+  useEffect(() => {
+    cargarReservas()
+  }, [fechaSeleccionada, canchaSeleccionada])
 
   async function cargarCanchas() {
-
-    setCargandoCanchas(true)
-    setError('')
-
-    const { data, error } =
-      await supabase
+    try {
+      const { data, error } = await supabase
         .from('canchas')
         .select('*')
         .order('id')
 
-    if (error) {
+      if (error) throw error
 
-      console.error(error)
+      const lista = data || []
 
+      setCanchas(lista)
+
+      if (lista.length > 0) {
+        setCanchaSeleccionada(String(lista[0].id))
+      }
+    } catch (err) {
+      console.error(err)
       setError(
-        'No pudimos cargar las canchas: ' +
-        error.message
-      )
-
-      setCargandoCanchas(false)
-
-      return
-    }
-
-    setCanchas(data || [])
-
-    if (data && data.length > 0) {
-
-      setCanchaSeleccionada(
-        data[0]
+        'No pudimos cargar las canchas. ' +
+        (err.message || '')
       )
     }
-
-    setCargandoCanchas(false)
   }
 
-
-  // =====================================================
-  // CARGAR HORARIOS
-  // =====================================================
-
-  useEffect(() => {
-
+  async function cargarReservas() {
     if (!canchaSeleccionada) {
+      setReservas([])
+      setCargando(false)
       return
     }
 
-    cargarHorarios()
-
-  }, [
-    canchaSeleccionada,
-    fecha
-  ])
-
-
-  async function cargarHorarios() {
-
-    setCargandoHorarios(true)
-    setHorarioSeleccionado(null)
+    setCargando(true)
     setError('')
 
     try {
-
-      // -----------------------------------------------
-      // RESERVAS EXISTENTES
-      // -----------------------------------------------
-
-      const {
-        data: reservas,
-        error: errorReservas
-      } = await supabase
+      const { data, error } = await supabase
         .from('reservas')
-        .select(
-          'id, hora_inicio, hora_fin, estado'
-        )
-        .eq(
-          'cancha_id',
-          canchaSeleccionada.id
-        )
-        .eq(
-          'fecha',
-          fecha
-        )
-        .neq(
-          'estado',
-          'cancelada'
-        )
+        .select('*')
+        .eq('fecha', fechaSeleccionada)
+        .eq('cancha_id', Number(canchaSeleccionada))
+        .in('estado', [
+          'pendiente_pago',
+          'confirmada'
+        ])
 
-      if (errorReservas) {
-        throw errorReservas
-      }
+      if (error) throw error
 
-
-      // -----------------------------------------------
-      // HORARIOS
-      // -----------------------------------------------
-
-      const horariosGenerados =
-        generarHorarios()
-
-
-      // -----------------------------------------------
-      // QUITAR OCUPADOS
-      // -----------------------------------------------
-
-      const disponibles =
-        horariosGenerados.filter(
-          horario => {
-
-            const ocupado =
-              (reservas || []).some(
-                reserva => {
-
-                  return horariosSeSuperponen(
-                    horario.inicio,
-                    horario.fin,
-                    reserva.hora_inicio,
-                    reserva.hora_fin
-                  )
-                }
-              )
-
-            return !ocupado
-          }
-        )
-
-
-      setHorarios(
-        disponibles
-      )
-
+      setReservas(data || [])
     } catch (err) {
-
       console.error(err)
 
       setError(
-        'No pudimos cargar los horarios: ' +
+        'No pudimos cargar los horarios disponibles. ' +
         (err.message || '')
       )
-
-      setHorarios([])
-
     } finally {
-
-      setCargandoHorarios(false)
+      setCargando(false)
     }
   }
 
+  function horarioOcupado(horario) {
+    const inicioNuevo = horario
+    const finNuevo = agregarMinutos(horario, 60)
 
-  // =====================================================
-  // GENERAR HORARIOS
-  // =====================================================
+    return reservas.some((reserva) => {
+      const inicioExistente = String(
+        reserva.hora_inicio || ''
+      ).slice(0, 5)
 
-  function generarHorarios() {
+      const finExistente = reserva.hora_fin
+        ? String(reserva.hora_fin).slice(0, 5)
+        : agregarMinutos(inicioExistente, 60)
 
-    const resultado = []
-
-    /*
-      HORARIO DE FUNCIONAMIENTO
-
-      08:00 a 23:00
-
-      Turnos de 1 hora.
-
-      Después podemos hacer que esto
-      salga directamente de la base
-      de datos para cada día.
-    */
-
-    const inicio = 8 * 60
-    const fin = 23 * 60
-    const duracion = 60
-
-    for (
-      let minutos = inicio;
-      minutos < fin;
-      minutos += duracion
-    ) {
-
-      const siguiente =
-        minutos + duracion
-
-      if (siguiente > fin) {
-        break
-      }
-
-      resultado.push({
-
-        inicio:
-          minutosAHora(minutos),
-
-        fin:
-          minutosAHora(siguiente)
-
-      })
-    }
-
-    return resultado
-  }
-
-
-  // =====================================================
-  // MINUTOS A HORA
-  // =====================================================
-
-  function minutosAHora(minutos) {
-
-    const horas =
-      Math.floor(minutos / 60)
-
-    const minutosRestantes =
-      minutos % 60
-
-    return `${String(
-      horas
-    ).padStart(2, '0')}:${String(
-      minutosRestantes
-    ).padStart(2, '0')}:00`
-  }
-
-
-  // =====================================================
-  // HORA A MINUTOS
-  // =====================================================
-
-  function horaAMinutos(hora) {
-
-    const partes =
-      String(hora).split(':')
-
-    return (
-      Number(partes[0]) * 60 +
-      Number(partes[1])
-    )
-  }
-
-
-  // =====================================================
-  // SUPERPOSICIÓN DE HORARIOS
-  // =====================================================
-
-  function horariosSeSuperponen(
-    inicio1,
-    fin1,
-    inicio2,
-    fin2
-  ) {
-
-    const a =
-      horaAMinutos(inicio1)
-
-    const b =
-      horaAMinutos(fin1)
-
-    const c =
-      horaAMinutos(inicio2)
-
-    const d =
-      horaAMinutos(fin2)
-
-    return (
-      a < d &&
-      b > c
-    )
-  }
-
-
-  // =====================================================
-  // PRECIO
-  // =====================================================
-
-  function obtenerPrecio() {
-
-    if (!canchaSeleccionada) {
-      return 0
-    }
-
-    /*
-      Intentamos utilizar el precio de la cancha
-      si existe alguna de estas columnas.
-    */
-
-    const posibles = [
-      canchaSeleccionada.precio,
-      canchaSeleccionada.precio_hora,
-      canchaSeleccionada.precio_por_hora,
-      canchaSeleccionada.valor
-    ]
-
-    const encontrado =
-      posibles.find(
-        valor =>
-          valor !== null &&
-          valor !== undefined &&
-          valor !== ''
+      return (
+        inicioNuevo < finExistente &&
+        finNuevo > inicioExistente
       )
-
-    return Number(
-      encontrado || 0
-    )
+    })
   }
 
+  const horariosDisponibles = HORARIOS.filter(
+    (horario) => !horarioOcupado(horario)
+  )
 
-  // =====================================================
-  // FORMATO PESOS
-  // =====================================================
-
-  function pesos(valor) {
-
-    return new Intl.NumberFormat(
-      'es-AR',
-      {
-        style: 'currency',
-        currency: 'ARS',
-        maximumFractionDigits: 0
-      }
-    ).format(
-      Number(valor || 0)
-    )
+  function seleccionarHorario(horario) {
+    setHorarioSeleccionado(horario)
+    setModalReserva(true)
   }
 
+  function cerrarModal() {
+    if (reservando) return
 
-  // =====================================================
-  // MONTO A PAGAR
-  // =====================================================
-
-  function montoPago() {
-
-    const total =
-      obtenerPrecio()
-
-    if (tipoPago === '100') {
-      return total
-    }
-
-    return total / 2
+    setModalReserva(false)
+    setHorarioSeleccionado('')
   }
 
-
-  // =====================================================
-  // SALDO
-  // =====================================================
-
-  function saldoPendiente() {
-
-    const total =
-      obtenerPrecio()
-
-    return Math.max(
-      total - montoPago(),
-      0
-    )
-  }
-
-
-  // =====================================================
-  // RESERVAR
-  // =====================================================
-
-  async function reservar() {
-
-    setError('')
-    setMensaje('')
-
-    if (!canchaSeleccionada) {
-
-      setError(
-        'Seleccioná una cancha.'
-      )
-
-      return
-    }
-
-    if (!horarioSeleccionado) {
-
-      setError(
-        'Seleccioná un horario.'
-      )
-
-      return
-    }
+  async function crearReserva(e) {
+    e.preventDefault()
 
     if (!nombre.trim()) {
-
-      setError(
-        'Ingresá tu nombre.'
-      )
-
+      alert('Ingresá tu nombre.')
       return
     }
 
     if (!telefono.trim()) {
-
-      setError(
-        'Ingresá tu teléfono o WhatsApp.'
-      )
-
+      alert('Ingresá tu teléfono.')
       return
     }
 
+    if (!canchaSeleccionada) {
+      alert('Seleccioná una cancha.')
+      return
+    }
+
+    if (!horarioSeleccionado) {
+      alert('Seleccioná un horario.')
+      return
+    }
 
     setReservando(true)
 
     try {
+      // Verificamos nuevamente que el horario
+      // siga libre antes de crear la reserva.
+      const { data: reservasActuales, error: errorConsulta } =
+        await supabase
+          .from('reservas')
+          .select('*')
+          .eq('fecha', fechaSeleccionada)
+          .eq('cancha_id', Number(canchaSeleccionada))
+          .in('estado', [
+            'pendiente_pago',
+            'confirmada'
+          ])
 
-      // -----------------------------------------------
-      // VERIFICACIÓN FINAL
-      // -----------------------------------------------
+      if (errorConsulta) throw errorConsulta
 
-      const {
-        data: reservasActuales,
-        error: errorVerificacion
-      } = await supabase
-        .from('reservas')
-        .select(
-          'id, hora_inicio, hora_fin, estado'
-        )
-        .eq(
-          'cancha_id',
-          canchaSeleccionada.id
-        )
-        .eq(
-          'fecha',
-          fecha
-        )
-        .neq(
-          'estado',
-          'cancelada'
-        )
+      const ocupado = (reservasActuales || []).some(
+        (reserva) => {
+          const inicioExistente = String(
+            reserva.hora_inicio || ''
+          ).slice(0, 5)
 
+          const finExistente = reserva.hora_fin
+            ? String(reserva.hora_fin).slice(0, 5)
+            : agregarMinutos(inicioExistente, 60)
 
-      if (errorVerificacion) {
-        throw errorVerificacion
-      }
+          const finNuevo = agregarMinutos(
+            horarioSeleccionado,
+            60
+          )
 
-
-      const ocupado =
-        (reservasActuales || []).some(
-          reserva =>
-            horariosSeSuperponen(
-              horarioSeleccionado.inicio,
-              horarioSeleccionado.fin,
-              reserva.hora_inicio,
-              reserva.hora_fin
-            )
-        )
-
+          return (
+            horarioSeleccionado < finExistente &&
+            finNuevo > inicioExistente
+          )
+        }
+      )
 
       if (ocupado) {
-
-        setError(
-          'Ese horario acaba de ser reservado. ' +
-          'Elegí otro horario.'
+        alert(
+          'Ese horario acaba de ser reservado por otra persona. Elegí otro.'
         )
 
-        await cargarHorarios()
+        await cargarReservas()
+
+        setModalReserva(false)
+        setHorarioSeleccionado('')
 
         return
       }
 
+      const cancha = canchas.find(
+        (c) =>
+          Number(c.id) ===
+          Number(canchaSeleccionada)
+      )
 
-      // -----------------------------------------------
-      // DATOS DE PAGO
-      // -----------------------------------------------
+      /*
+       * Si tu tabla canchas tiene un precio,
+       * lo usamos. Si no lo tiene, queda en 0
+       * para que puedas configurarlo después.
+       */
+      const precioTotal = Number(
+        cancha?.precio ||
+        cancha?.precio_hora ||
+        cancha?.precio_por_hora ||
+        0
+      )
 
-      const total =
-        obtenerPrecio()
+      const montoPagado =
+        pago === '100'
+          ? precioTotal
+          : precioTotal * 0.5
 
-      const pagado =
-        montoPago()
-
-      const saldo =
-        saldoPendiente()
-
-
-      const estadoPago =
-        tipoPago === '100'
-          ? 'pago_completo'
-          : 'seña_50'
-
-
-      // -----------------------------------------------
-      // CREAR RESERVA
-      // -----------------------------------------------
-
-      const datosReserva = {
-
-        cancha_id:
-          canchaSeleccionada.id,
-
-        fecha:
-          fecha,
-
-        hora_inicio:
-          horarioSeleccionado.inicio,
-
-        hora_fin:
-          horarioSeleccionado.fin,
-
-        cliente_nombre:
-          nombre.trim(),
-
-        cliente_telefono:
-          telefono.trim(),
-
-        precio_total:
-          total,
-
-        monto_pagado:
-          pagado,
-
-        saldo_pendiente:
-          saldo,
-
-        estado:
-          'pendiente_pago',
-
-        estado_pago:
-          estadoPago
-      }
-
-
-      const {
-        data,
-        error: errorReserva
-      } = await supabase
-        .from('reservas')
-        .insert(
-          datosReserva
+      const saldoPendiente =
+        Math.max(
+          precioTotal - montoPagado,
+          0
         )
+
+      const { data, error } = await supabase
+        .from('reservas')
+        .insert({
+          cancha_id: Number(canchaSeleccionada),
+          cliente_nombre: nombre.trim(),
+          cliente_telefono: telefono.trim(),
+          fecha: fechaSeleccionada,
+          hora_inicio: horarioSeleccionado,
+          hora_fin: agregarMinutos(
+            horarioSeleccionado,
+            60
+          ),
+          precio_total: precioTotal,
+          monto_pagado: montoPagado,
+          saldo_pendiente: saldoPendiente,
+          estado: 'pendiente_pago',
+          estado_pago:
+            pago === '100'
+              ? 'pago_total'
+              : 'pago_50'
+        })
         .select()
         .single()
 
+      if (error) throw error
 
-      if (errorReserva) {
-        throw errorReserva
-      }
-
-
-      // -----------------------------------------------
-      // COMPROBANTE
-      // -----------------------------------------------
-
-      setComprobante({
-
-        id:
-          data?.id,
-
-        cancha:
-          canchaSeleccionada.nombre ||
-          `Cancha ${canchaSeleccionada.id}`,
-
-        fecha:
-          fecha,
-
-        horario:
-          `${horarioSeleccionado.inicio.slice(0, 5)} - ` +
-          `${horarioSeleccionado.fin.slice(0, 5)}`,
-
-        nombre:
-          nombre.trim(),
-
-        telefono:
-          telefono.trim(),
-
-        total:
-          total,
-
-        pagado:
-          pagado,
-
-        saldo:
-          saldo,
-
-        tipoPago:
-          tipoPago === '100'
-            ? 'Pago completo'
-            : 'Seña del 50%'
+      setReservaCreada({
+        ...data,
+        cancha_nombre:
+          cancha?.nombre ||
+          `Cancha ${canchaSeleccionada}`,
+        porcentaje_pago: pago
       })
 
+      setModalReserva(false)
 
-      setMensaje(
-        '¡Reserva realizada correctamente!'
-      )
-
-
-      setNombre('')
-      setTelefono('')
-
-      setHorarioSeleccionado(null)
-
-      await cargarHorarios()
+      await cargarReservas()
 
     } catch (err) {
-
       console.error(err)
 
-      setError(
-        'No pudimos realizar la reserva: ' +
-        (err.message || '')
+      alert(
+        'No pudimos realizar la reserva:\n\n' +
+        (err.message || 'Error desconocido.')
       )
-
     } finally {
-
       setReservando(false)
     }
   }
 
+  function mensajeComprobante() {
+    if (!reservaCreada) return ''
 
-  // =====================================================
-  // FORMATO FECHA
-  // =====================================================
-
-  function fechaBonita(valor) {
-
-    const partes =
-      valor.split('-')
-
-    const fechaObj =
-      new Date(
-        Number(partes[0]),
-        Number(partes[1]) - 1,
-        Number(partes[2])
-      )
-
-    return fechaObj.toLocaleDateString(
-      'es-AR',
-      {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      }
+    return (
+      `Hola, quiero enviar el comprobante de pago de mi reserva en La Quinta Padel.\n\n` +
+      `Nombre: ${reservaCreada.cliente_nombre}\n` +
+      `Fecha: ${reservaCreada.fecha}\n` +
+      `Día: ${obtenerNombreDia(reservaCreada.fecha)}\n` +
+      `Horario: ${String(reservaCreada.hora_inicio).slice(0, 5)} - ${String(reservaCreada.hora_fin).slice(0, 5)}\n` +
+      `Cancha: ${reservaCreada.cancha_nombre}\n` +
+      `Pago elegido: ${reservaCreada.porcentaje_pago}%\n\n` +
+      `Adjunto el comprobante de pago.`
     )
   }
 
+  function enviarComprobante() {
+    const mensaje = mensajeComprobante()
 
-  // =====================================================
-  // IMPRIMIR COMPROBANTE
-  // =====================================================
+    const url =
+      `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensaje)}`
 
-  function imprimirComprobante() {
-
-    window.print()
+    window.open(url, '_blank')
   }
 
+  function consultarWhatsApp() {
+    const mensaje =
+      'Hola, quiero hacer una consulta sobre La Quinta Padel.'
 
-  // =====================================================
-  // PANTALLA
-  // =====================================================
+    const url =
+      `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensaje)}`
+
+    window.open(url, '_blank')
+  }
+
+  function cambiarFecha(cantidad) {
+    setFechaSeleccionada(
+      sumarDias(
+        fechaSeleccionada,
+        cantidad
+      )
+    )
+
+    setHorarioSeleccionado('')
+  }
 
   return (
-
     <main className="pagina">
 
       <style jsx global>{`
-
         * {
           box-sizing: border-box;
         }
@@ -837,481 +462,440 @@ export default function Home() {
           font: inherit;
         }
 
-        button {
-          cursor: pointer;
-        }
-
         .pagina {
           min-height: 100vh;
+          padding: 20px 14px 35px;
 
           background:
             radial-gradient(
               circle at top,
-              #16402e 0%,
+              #17432f 0,
               #07110d 48%,
               #030806 100%
             );
-
-          padding: 25px 14px 60px;
         }
 
         .contenedor {
           width: 100%;
-          max-width: 760px;
+          max-width: 900px;
           margin: auto;
         }
 
-        .encabezado {
+        .hero {
           text-align: center;
-          margin-bottom: 28px;
+          padding: 20px 10px 25px;
         }
 
-        .pelota {
-          font-size: 48px;
-          margin-bottom: 5px;
+        .logo {
+          width: 78px;
+          height: 78px;
+          margin: 0 auto 14px;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          border-radius: 24px;
+
+          background: #d7ff45;
+          color: #17210c;
+
+          font-size: 40px;
+          box-shadow:
+            0 15px 40px rgba(0,0,0,.35);
         }
 
-        .encabezado h1 {
+        .hero h1 {
           margin: 0;
-          font-size: 36px;
-          font-weight: 900;
-          letter-spacing: -1px;
+          font-size: 34px;
+          font-weight: 950;
         }
 
-        .encabezado p {
-          margin: 7px 0 0;
-          color: #9eb1a8;
-          font-size: 14px;
+        .hero p {
+          margin: 8px 0 0;
+          color: #a8b9b1;
+          font-size: 15px;
         }
 
         .tarjeta {
-          background:
-            rgba(255,255,255,.06);
-
-          border:
-            1px solid rgba(255,255,255,.1);
-
-          border-radius: 22px;
-
-          padding: 20px;
-
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(255,255,255,.10);
+          border-radius: 24px;
+          padding: 18px;
           margin-bottom: 18px;
-
-          backdrop-filter:
-            blur(10px);
+          backdrop-filter: blur(12px);
         }
 
         .titulo {
+          margin: 0 0 14px;
           font-size: 19px;
           font-weight: 900;
-          margin-bottom: 16px;
         }
 
         .dias {
           display: grid;
-
           grid-template-columns:
             repeat(7, 1fr);
-
-          gap: 6px;
+          gap: 7px;
         }
 
         .dia {
-          border: 1px solid #355b48;
-
+          border: 1px solid #29483a;
           background: #0b1b14;
-
-          color: white;
-
+          color: #aebeb7;
           border-radius: 12px;
-
-          padding: 12px 4px;
-
+          padding: 11px 5px;
+          cursor: pointer;
           font-size: 12px;
-
           font-weight: 900;
-        }
-
-        .diaActivo {
-          background: #d7ff45;
-          color: #17210c;
-          border-color: #d7ff45;
-        }
-
-        .fechaActual {
-          text-align: center;
-
-          margin-top: 14px;
-
-          color: #a9bbb3;
-
-          font-size: 13px;
-
           text-transform: capitalize;
         }
 
-        .canchas {
-          display: grid;
-
-          grid-template-columns:
-            repeat(2, 1fr);
-
-          gap: 10px;
-        }
-
-        .cancha {
-          border:
-            1px solid #355b48;
-
-          background: #0b1b14;
-
-          color: white;
-
-          border-radius: 14px;
-
-          padding: 16px 10px;
-
-          font-weight: 900;
-        }
-
-        .canchaActivo {
+        .dia.activo {
           background: #d7ff45;
-          color: #17210c;
           border-color: #d7ff45;
+          color: #17210c;
+        }
+
+        .fechaNavegacion {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+
+        .flecha {
+          width: 42px;
+          height: 42px;
+          border: 0;
+          border-radius: 12px;
+          background: rgba(255,255,255,.08);
+          color: white;
+          font-size: 23px;
+          cursor: pointer;
+        }
+
+        .fechaTexto {
+          flex: 1;
+          text-align: center;
+        }
+
+        .fechaTexto strong {
+          display: block;
+          text-transform: capitalize;
+          font-size: 15px;
+        }
+
+        .fechaTexto small {
+          color: #81978d;
+          display: block;
+          margin-top: 3px;
+        }
+
+        .canchaSelect {
+          width: 100%;
+          padding: 13px;
+          border-radius: 13px;
+          border: 1px solid #29483a;
+          background: #0b1b14;
+          color: white;
+          outline: none;
         }
 
         .horarios {
           display: grid;
-
           grid-template-columns:
-            repeat(3, 1fr);
-
-          gap: 10px;
+            repeat(4, 1fr);
+          gap: 9px;
         }
 
         .horario {
-          border:
-            1px solid #355b48;
-
+          border: 1px solid #416151;
           background: #0b1b14;
-
-          color: white;
-
+          color: #d7ff45;
           border-radius: 13px;
-
           padding: 14px 5px;
-
-          font-weight: 900;
-
-          font-size: 14px;
+          cursor: pointer;
+          font-size: 15px;
+          font-weight: 950;
+          transition: .15s;
         }
 
-        .horarioActivo {
-          background: #d7ff45;
-          color: #17210c;
+        .horario:hover {
+          transform: translateY(-1px);
           border-color: #d7ff45;
         }
 
-        .sinHorarios,
-        .cargando {
+        .cargando,
+        .sinHorarios {
           text-align: center;
           padding: 35px 10px;
           color: #91a69c;
         }
 
+        .sinHorarios strong {
+          display: block;
+          color: white;
+          margin-bottom: 7px;
+        }
+
+        .error {
+          padding: 14px;
+          border-radius: 14px;
+          background: #421d22;
+          border: 1px solid #74343c;
+          color: #ffb6bd;
+          margin-bottom: 15px;
+        }
+
+        .modalFondo {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          padding: 15px;
+
+          background: rgba(0,0,0,.72);
+        }
+
+        .modal {
+          width: 100%;
+          max-width: 470px;
+          max-height: 92vh;
+          overflow-y: auto;
+
+          background: #0b1b14;
+          border: 1px solid #416151;
+          border-radius: 24px;
+          padding: 20px;
+        }
+
+        .modalCabecera {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 18px;
+        }
+
+        .modalCabecera h2 {
+          margin: 0;
+          font-size: 21px;
+        }
+
+        .cerrar {
+          width: 38px;
+          height: 38px;
+          border: 0;
+          border-radius: 11px;
+          background: rgba(255,255,255,.08);
+          color: white;
+          cursor: pointer;
+          font-size: 20px;
+        }
+
+        .resumen {
+          padding: 14px;
+          border-radius: 15px;
+          background: rgba(255,255,255,.05);
+          margin-bottom: 15px;
+        }
+
+        .resumen strong {
+          display: block;
+          color: #d7ff45;
+          font-size: 21px;
+          margin-bottom: 5px;
+        }
+
         .campo {
-          margin-bottom: 14px;
+          margin-bottom: 13px;
         }
 
         .campo label {
           display: block;
-
-          margin-bottom: 7px;
-
+          margin-bottom: 6px;
           color: #a9bbb3;
-
-          font-size: 13px;
-
-          font-weight: 700;
+          font-size: 12px;
+          font-weight: 800;
         }
 
         .campo input {
           width: 100%;
-
-          padding: 14px;
-
-          border:
-            1px solid #29483a;
-
-          border-radius: 13px;
-
-          background: #0b1b14;
-
+          padding: 13px;
+          border-radius: 12px;
+          border: 1px solid #29483a;
+          background: #07110d;
           color: white;
-
           outline: none;
-        }
-
-        .campo input:focus {
-          border-color: #d7ff45;
         }
 
         .pagos {
           display: grid;
-
-          grid-template-columns:
-            1fr 1fr;
-
-          gap: 10px;
-
-          margin-top: 5px;
-
-          margin-bottom: 18px;
+          grid-template-columns: 1fr 1fr;
+          gap: 9px;
+          margin: 15px 0;
         }
 
         .pago {
-          border:
-            1px solid #355b48;
-
-          background: #0b1b14;
-
-          color: white;
-
-          border-radius: 14px;
-
-          padding: 16px;
-
-          text-align: left;
+          border: 1px solid #385544;
+          background: #07110d;
+          color: #aebeb7;
+          padding: 14px 8px;
+          border-radius: 13px;
+          cursor: pointer;
+          font-weight: 900;
         }
 
-        .pagoActivo {
+        .pago.activo {
           border-color: #d7ff45;
-
-          background:
-            rgba(215,255,69,.09);
-        }
-
-        .pagoTitulo {
-          font-weight: 900;
-          margin-bottom: 5px;
-        }
-
-        .pagoDescripcion {
-          color: #94a89f;
-          font-size: 12px;
-        }
-
-        .pagoActivo .pagoDescripcion {
-          color: #c9dda5;
-        }
-
-        .resumenPago {
-          display: grid;
-
-          gap: 8px;
-
-          margin-bottom: 16px;
-
-          padding: 14px;
-
-          border-radius: 14px;
-
-          background:
-            rgba(255,255,255,.04);
-        }
-
-        .filaPago {
-          display: flex;
-
-          justify-content: space-between;
-
-          gap: 10px;
-
-          font-size: 13px;
-
-          color: #a9bbb3;
-        }
-
-        .filaPago strong {
-          color: white;
-        }
-
-        .filaPago.total strong {
+          background: rgba(215,255,69,.10);
           color: #d7ff45;
-          font-size: 17px;
         }
 
-        .botonReservar {
+        .botonPrincipal {
           width: 100%;
-
           border: 0;
-
-          border-radius: 14px;
-
-          padding: 16px;
-
+          border-radius: 13px;
+          padding: 15px;
           background: #d7ff45;
-
           color: #17210c;
-
-          font-size: 16px;
-
-          font-weight: 900;
+          font-weight: 950;
+          cursor: pointer;
         }
 
-        .botonReservar:disabled {
-          opacity: .5;
+        .botonPrincipal:disabled {
+          opacity: .55;
           cursor: not-allowed;
         }
 
-        .error {
-          padding: 15px;
-
-          border-radius: 14px;
-
-          background: #421d22;
-
-          border:
-            1px solid #74343c;
-
-          color: #ffb6bd;
-
-          margin-bottom: 18px;
-        }
-
-        .mensaje {
-          padding: 15px;
-
-          border-radius: 14px;
-
-          background:
-            rgba(60,180,100,.12);
-
-          border:
-            1px solid rgba(100,220,130,.3);
-
-          color: #b9f5c7;
-
-          margin-bottom: 18px;
-
-          text-align: center;
-
-          font-weight: 700;
-        }
-
-        /* ================================================
-           COMPROBANTE
-        ================================================ */
-
         .comprobante {
-          background: white;
-
-          color: #17210c;
-
-          border-radius: 20px;
-
-          padding: 25px;
-
-          margin-top: 20px;
-
-          box-shadow:
-            0 15px 40px
-            rgba(0,0,0,.3);
-        }
-
-        .comprobanteTitulo {
           text-align: center;
-
-          border-bottom:
-            1px solid #ddd;
-
-          padding-bottom: 15px;
-
-          margin-bottom: 18px;
         }
 
-        .comprobanteTitulo .check {
-          font-size: 40px;
+        .check {
+          width: 65px;
+          height: 65px;
+          border-radius: 50%;
+          margin: 0 auto 15px;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          background: #d7ff45;
+          color: #17210c;
+          font-size: 31px;
         }
 
-        .comprobanteTitulo h2 {
-          margin: 5px 0;
-
-          font-size: 24px;
+        .comprobante h2 {
+          margin: 0 0 8px;
         }
 
-        .comprobanteTitulo p {
-          margin: 0;
-
-          color: #666;
-
+        .comprobante p {
+          color: #a9bbb3;
           font-size: 13px;
+          line-height: 1.5;
         }
 
-        .comprobanteDatos {
-          display: grid;
-
-          gap: 10px;
+        .datosComprobante {
+          text-align: left;
+          background: rgba(255,255,255,.05);
+          border-radius: 15px;
+          padding: 14px;
+          margin: 15px 0;
         }
 
         .datoComprobante {
           display: flex;
-
           justify-content: space-between;
-
           gap: 10px;
+          padding: 8px 0;
+          border-bottom: 1px solid rgba(255,255,255,.07);
+        }
 
-          padding-bottom: 9px;
-
-          border-bottom:
-            1px solid #eee;
-
-          font-size: 14px;
+        .datoComprobante:last-child {
+          border-bottom: 0;
         }
 
         .datoComprobante span {
-          color: #666;
+          color: #81978d;
+          font-size: 12px;
         }
 
         .datoComprobante strong {
+          font-size: 12px;
           text-align: right;
         }
 
-        .pagoComprobante {
-          margin-top: 16px;
-
-          padding: 14px;
-
-          border-radius: 12px;
-
-          background: #f2f6ed;
-        }
-
-        .pagoComprobante strong {
-          display: block;
-
-          margin-bottom: 5px;
-        }
-
-        .botonImprimir {
+        .botonWhatsApp {
           width: 100%;
+          border: 0;
+          border-radius: 13px;
+          padding: 15px;
+          background: #25d366;
+          color: white;
+          font-weight: 950;
+          cursor: pointer;
+          margin-top: 9px;
+        }
+
+        .aviso {
+          padding: 12px;
+          border-radius: 12px;
+          background: rgba(255,193,7,.08);
+          border: 1px solid rgba(255,193,7,.20);
+          color: #ffe08a;
+          font-size: 12px;
+          line-height: 1.5;
+          text-align: left;
+        }
+
+        .consultas {
+          text-align: center;
+          padding: 28px 15px;
+        }
+
+        .consultas p {
+          margin: 0 0 12px;
+          color: #9daf a7;
+          color: #9daea7;
+          font-size: 13px;
+        }
+
+        .consultaWhatsApp {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
 
           border: 0;
+          border-radius: 50px;
+          padding: 12px 20px;
 
-          border-radius: 12px;
-
-          padding: 14px;
-
-          margin-top: 18px;
-
-          background: #17210c;
-
+          background: #25d366;
           color: white;
 
-          font-weight: 900;
+          font-weight: 950;
+          cursor: pointer;
         }
 
-        @media(max-width: 600px) {
+        .whatsappIcono {
+          font-size: 21px;
+        }
+
+        @media(max-width: 650px) {
+          .pagina {
+            padding: 10px 10px 25px;
+          }
+
+          .hero h1 {
+            font-size: 29px;
+          }
 
           .dias {
             grid-template-columns:
@@ -1320,226 +904,183 @@ export default function Home() {
 
           .horarios {
             grid-template-columns:
+              repeat(3, 1fr);
+          }
+        }
+
+        @media(max-width: 390px) {
+          .horarios {
+            grid-template-columns:
               repeat(2, 1fr);
           }
-
-          .pagos {
-            grid-template-columns: 1fr;
-          }
-
-          .encabezado h1 {
-            font-size: 30px;
-          }
         }
-
-        @media print {
-
-          body {
-            background: white !important;
-          }
-
-          .pagina {
-            background: white !important;
-            padding: 0 !important;
-          }
-
-          .noImprimir {
-            display: none !important;
-          }
-
-          .comprobante {
-            box-shadow: none;
-            margin: 0;
-          }
-
-        }
-
       `}</style>
-
 
       <div className="contenedor">
 
-
-        {/* =================================================
-            ENCABEZADO
-        ================================================= */}
-
-        <header className="encabezado">
-
-          <div className="pelota">
+        <section className="hero">
+          <div className="logo">
             🎾
           </div>
 
           <h1>
-            LA QUINTA PADEL
+            La Quinta Padel
           </h1>
 
           <p>
             Días y horarios disponibles
           </p>
-
-        </header>
-
-
-        {/* =================================================
-            MENSAJE / ERROR
-        ================================================= */}
+        </section>
 
         {error && (
-
           <div className="error">
             {error}
           </div>
-
         )}
 
-        {mensaje && !comprobante && (
+        <section className="tarjeta">
 
-          <div className="mensaje">
-            {mensaje}
-          </div>
-
-        )}
-
-
-        {/* =================================================
-            DÍAS
-        ================================================= */}
-
-        <section className="tarjeta noImprimir">
-
-          <div className="titulo">
+          <h2 className="titulo">
             📅 Elegí el día
-          </div>
+          </h2>
 
           <div className="dias">
+            {DIAS.map((dia, index) => {
+              const numeroDia = index + 1
 
-            {dias.map(dia => (
+              let diferencia =
+                numeroDia -
+                obtenerDiaSemana(
+                  fechaSeleccionada
+                )
 
-              <button
-                key={dia.numero}
-                className={
-                  'dia ' +
-                  (
-                    diaSeleccionado ===
-                    dia.numero
-                      ? 'diaActivo'
-                      : ''
-                  )
-                }
-                onClick={() =>
-                  seleccionarDia(
-                    dia.numero
-                  )
-                }
-              >
+              if (diferencia < 0) {
+                diferencia += 7
+              }
 
-                {dia.nombre}
+              const fechaDia =
+                sumarDias(
+                  fechaSeleccionada,
+                  diferencia
+                )
 
-              </button>
-
-            ))}
-
-          </div>
-
-          <div className="fechaActual">
-
-            {fechaBonita(fecha)}
-
-          </div>
-
-        </section>
-
-
-        {/* =================================================
-            CANCHAS
-        ================================================= */}
-
-        <section className="tarjeta noImprimir">
-
-          <div className="titulo">
-            🎾 Elegí la cancha
-          </div>
-
-          {cargandoCanchas ? (
-
-            <div className="cargando">
-              Cargando canchas...
-            </div>
-
-          ) : canchas.length === 0 ? (
-
-            <div className="sinHorarios">
-              No hay canchas disponibles.
-            </div>
-
-          ) : (
-
-            <div className="canchas">
-
-              {canchas.map(cancha => (
-
+              return (
                 <button
-                  key={cancha.id}
+                  key={dia}
                   className={
-                    'cancha ' +
-                    (
-                      Number(
-                        canchaSeleccionada?.id
-                      ) ===
-                      Number(cancha.id)
-                        ? 'canchaActivo'
-                        : ''
-                    )
+                    obtenerNombreDia(
+                      fechaSeleccionada
+                    ) === dia
+                      ? 'dia activo'
+                      : 'dia'
                   }
                   onClick={() =>
-                    setCanchaSeleccionada(
-                      cancha
+                    setFechaSeleccionada(
+                      fechaDia
                     )
                   }
                 >
-
-                  🎾{' '}
-
-                  {cancha.nombre ||
-                    `Cancha ${cancha.id}`}
-
+                  {dia}
                 </button>
-
-              ))}
-
-            </div>
-
-          )}
+              )
+            })}
+          </div>
 
         </section>
 
+        <section className="tarjeta">
 
-        {/* =================================================
-            HORARIOS
-        ================================================= */}
+          <div className="fechaNavegacion">
 
-        <section className="tarjeta noImprimir">
+            <button
+              className="flecha"
+              onClick={() =>
+                cambiarFecha(-1)
+              }
+            >
+              ‹
+            </button>
 
-          <div className="titulo">
-            🕐 Horarios disponibles
+            <div className="fechaTexto">
+
+              <strong>
+                {formatearFecha(
+                  fechaSeleccionada
+                )}
+              </strong>
+
+              <small>
+                {fechaSeleccionada}
+              </small>
+
+            </div>
+
+            <button
+              className="flecha"
+              onClick={() =>
+                cambiarFecha(1)
+              }
+            >
+              ›
+            </button>
+
           </div>
 
-          {cargandoHorarios ? (
+          <h2 className="titulo">
+            🎾 Elegí la cancha
+          </h2>
+
+          <select
+            className="canchaSelect"
+            value={canchaSeleccionada}
+            onChange={(e) =>
+              setCanchaSeleccionada(
+                e.target.value
+              )
+            }
+          >
+            {canchas.length === 0 ? (
+              <option value="">
+                Cargando canchas...
+              </option>
+            ) : (
+              canchas.map((cancha) => (
+                <option
+                  key={cancha.id}
+                  value={cancha.id}
+                >
+                  {cancha.nombre ||
+                    `Cancha ${cancha.id}`}
+                </option>
+              ))
+            )}
+          </select>
+
+        </section>
+
+        <section className="tarjeta">
+
+          <h2 className="titulo">
+            🕐 Horarios disponibles
+          </h2>
+
+          {cargando ? (
 
             <div className="cargando">
               Buscando horarios disponibles...
             </div>
 
-          ) : horarios.length === 0 ? (
+          ) : horariosDisponibles.length === 0 ? (
 
             <div className="sinHorarios">
 
-              😕
-              <br /><br />
+              <strong>
+                No hay horarios disponibles
+              </strong>
 
-              No hay horarios disponibles
-              para este día.
+              <span>
+                Probá con otro día o cancha.
+              </span>
 
             </div>
 
@@ -1547,39 +1088,23 @@ export default function Home() {
 
             <div className="horarios">
 
-              {horarios.map(horario => {
-
-                const activo =
-                  horarioSeleccionado?.inicio ===
-                  horario.inicio
-
-                return (
+              {horariosDisponibles.map(
+                (horario) => (
 
                   <button
-                    key={horario.inicio}
-                    className={
-                      'horario ' +
-                      (
-                        activo
-                          ? 'horarioActivo'
-                          : ''
-                      )
-                    }
+                    key={horario}
+                    className="horario"
                     onClick={() =>
-                      setHorarioSeleccionado(
+                      seleccionarHorario(
                         horario
                       )
                     }
                   >
-
-                    {horario.inicio.slice(0, 5)}
-                    {' - '}
-                    {horario.fin.slice(0, 5)}
-
+                    {horario}
                   </button>
 
                 )
-              })}
+              )}
 
             </div>
 
@@ -1587,402 +1112,336 @@ export default function Home() {
 
         </section>
 
-
-        {/* =================================================
-            DATOS Y PAGO
-        ================================================= */}
-
-        {horarioSeleccionado && (
-
-          <section className="tarjeta noImprimir">
-
-            <div className="titulo">
-              👤 Datos de la reserva
-            </div>
-
-
-            <div className="campo">
-
-              <label>
-                Nombre
-              </label>
-
-              <input
-                type="text"
-                placeholder="Tu nombre"
-                value={nombre}
-                onChange={e =>
-                  setNombre(
-                    e.target.value
-                  )
-                }
-              />
-
-            </div>
-
-
-            <div className="campo">
-
-              <label>
-                Teléfono / WhatsApp
-              </label>
-
-              <input
-                type="tel"
-                placeholder="Tu teléfono"
-                value={telefono}
-                onChange={e =>
-                  setTelefono(
-                    e.target.value
-                  )
-                }
-              />
-
-            </div>
-
-
-            <div className="titulo">
-              💳 Forma de pago
-            </div>
-
-
-            <div className="pagos">
-
-              <button
-                className={
-                  'pago ' +
-                  (
-                    tipoPago === '100'
-                      ? 'pagoActivo'
-                      : ''
-                  )
-                }
-                onClick={() =>
-                  setTipoPago('100')
-                }
-              >
-
-                <div className="pagoTitulo">
-                  💰 Pago completo
-                </div>
-
-                <div className="pagoDescripcion">
-                  Pagás el 100% del turno
-                </div>
-
-              </button>
-
-
-              <button
-                className={
-                  'pago ' +
-                  (
-                    tipoPago === '50'
-                      ? 'pagoActivo'
-                      : ''
-                  )
-                }
-                onClick={() =>
-                  setTipoPago('50')
-                }
-              >
-
-                <div className="pagoTitulo">
-                  💵 Seña del 50%
-                </div>
-
-                <div className="pagoDescripcion">
-                  Pagás la mitad y queda
-                  el 50% pendiente
-                </div>
-
-              </button>
-
-            </div>
-
-
-            {/* RESUMEN */}
-
-            <div className="resumenPago">
-
-              <div className="filaPago">
-
-                <span>
-                  Cancha
-                </span>
-
-                <strong>
-                  {canchaSeleccionada?.nombre ||
-                    `Cancha ${canchaSeleccionada?.id}`}
-                </strong>
-
-              </div>
-
-
-              <div className="filaPago">
-
-                <span>
-                  Fecha
-                </span>
-
-                <strong>
-                  {fechaBonita(fecha)}
-                </strong>
-
-              </div>
-
-
-              <div className="filaPago">
-
-                <span>
-                  Horario
-                </span>
-
-                <strong>
-                  {horarioSeleccionado.inicio.slice(0, 5)}
-                  {' - '}
-                  {horarioSeleccionado.fin.slice(0, 5)}
-                </strong>
-
-              </div>
-
-
-              <div className="filaPago total">
-
-                <span>
-                  Total
-                </span>
-
-                <strong>
-                  {pesos(
-                    obtenerPrecio()
-                  )}
-                </strong>
-
-              </div>
-
-
-              <div className="filaPago">
-
-                <span>
-                  A pagar
-                </span>
-
-                <strong>
-                  {pesos(
-                    montoPago()
-                  )}
-                </strong>
-
-              </div>
-
-
-              <div className="filaPago">
-
-                <span>
-                  Saldo pendiente
-                </span>
-
-                <strong>
-                  {pesos(
-                    saldoPendiente()
-                  )}
-                </strong>
-
-              </div>
-
-            </div>
-
-
-            <button
-              className="botonReservar"
-              disabled={reservando}
-              onClick={reservar}
-            >
-
-              {reservando
-                ? 'Procesando reserva...'
-                : '🎾 Confirmar reserva'}
-
-            </button>
-
-          </section>
-
-        )}
-
-
-        {/* =================================================
-            COMPROBANTE
-        ================================================= */}
-
-        {comprobante && (
-
-          <section className="comprobante">
-
-            <div className="comprobanteTitulo">
-
-              <div className="check">
-                ✅
-              </div>
-
-              <h2>
-                Reserva recibida
-              </h2>
-
-              <p>
-                Comprobante de reserva
-              </p>
-
-            </div>
-
-
-            <div className="comprobanteDatos">
-
-              {comprobante.id && (
-
-                <div className="datoComprobante">
-
-                  <span>
-                    Reserva Nº
-                  </span>
-
-                  <strong>
-                    {comprobante.id}
-                  </strong>
-
-                </div>
-
-              )}
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Cliente
-                </span>
-
-                <strong>
-                  {comprobante.nombre}
-                </strong>
-
-              </div>
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Teléfono
-                </span>
-
-                <strong>
-                  {comprobante.telefono}
-                </strong>
-
-              </div>
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Cancha
-                </span>
-
-                <strong>
-                  {comprobante.cancha}
-                </strong>
-
-              </div>
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Fecha
-                </span>
-
-                <strong>
-                  {fechaBonita(
-                    comprobante.fecha
-                  )}
-                </strong>
-
-              </div>
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Horario
-                </span>
-
-                <strong>
-                  {comprobante.horario}
-                </strong>
-
-              </div>
-
-
-              <div className="datoComprobante">
-
-                <span>
-                  Total
-                </span>
-
-                <strong>
-                  {pesos(
-                    comprobante.total
-                  )}
-                </strong>
-
-              </div>
-
-            </div>
-
-
-            <div className="pagoComprobante">
-
-              <strong>
-                {comprobante.tipoPago}
-              </strong>
-
-              <div>
-                Pagado / a pagar:{' '}
-
-                <strong>
-                  {pesos(
-                    comprobante.pagado
-                  )}
-                </strong>
-              </div>
-
-              <div>
-                Saldo pendiente:{' '}
-
-                <strong>
-                  {pesos(
-                    comprobante.saldo
-                  )}
-                </strong>
-              </div>
-
-            </div>
-
-
-            <button
-              className="botonImprimir"
-              onClick={
-                imprimirComprobante
-              }
-            >
-              🖨️ Imprimir comprobante
-            </button>
-
-          </section>
-
-        )}
+        <section className="tarjeta consultas">
+
+          <p>
+            ¿Tenés alguna consulta?
+          </p>
+
+          <button
+            className="consultaWhatsApp"
+            onClick={consultarWhatsApp}
+          >
+            <span className="whatsappIcono">
+              💬
+            </span>
+
+            Consultanos por WhatsApp
+          </button>
+
+        </section>
 
       </div>
 
+      {modalReserva && (
+
+        <div
+          className="modalFondo"
+          onClick={cerrarModal}
+        >
+
+          <div
+            className="modal"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="modalCabecera">
+
+              <h2>
+                Reservar turno
+              </h2>
+
+              <button
+                className="cerrar"
+                onClick={cerrarModal}
+                disabled={reservando}
+              >
+                ×
+              </button>
+
+            </div>
+
+            <div className="resumen">
+
+              <strong>
+                {horarioSeleccionado}
+              </strong>
+
+              <div>
+                {formatearFecha(
+                  fechaSeleccionada
+                )}
+              </div>
+
+              <div>
+                {canchas.find(
+                  (c) =>
+                    Number(c.id) ===
+                    Number(canchaSeleccionada)
+                )?.nombre ||
+                  `Cancha ${canchaSeleccionada}`}
+              </div>
+
+            </div>
+
+            <form onSubmit={crearReserva}>
+
+              <div className="campo">
+
+                <label>
+                  Nombre
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Tu nombre"
+                  value={nombre}
+                  onChange={(e) =>
+                    setNombre(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+              <div className="campo">
+
+                <label>
+                  WhatsApp / teléfono
+                </label>
+
+                <input
+                  type="tel"
+                  placeholder="Ej: 1122408566"
+                  value={telefono}
+                  onChange={(e) =>
+                    setTelefono(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+              <h3 className="titulo">
+                💰 Elegí el pago
+              </h3>
+
+              <div className="pagos">
+
+                <button
+                  type="button"
+                  className={
+                    pago === '50'
+                      ? 'pago activo'
+                      : 'pago'
+                  }
+                  onClick={() =>
+                    setPago('50')
+                  }
+                >
+                  50%
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    pago === '100'
+                      ? 'pago activo'
+                      : 'pago'
+                  }
+                  onClick={() =>
+                    setPago('100')
+                  }
+                >
+                  100%
+                </button>
+
+              </div>
+
+              <div className="aviso">
+                La reserva quedará pendiente
+                hasta que verifiquemos el pago.
+                Después de reservar podrás enviar
+                el comprobante por WhatsApp.
+              </div>
+
+              <br />
+
+              <button
+                className="botonPrincipal"
+                type="submit"
+                disabled={reservando}
+              >
+                {reservando
+                  ? 'Reservando...'
+                  : 'Confirmar reserva'}
+              </button>
+
+            </form>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {reservaCreada && (
+
+        <div className="modalFondo">
+
+          <div className="modal comprobante">
+
+            <div className="check">
+              ✓
+            </div>
+
+            <h2>
+              ¡Reserva recibida!
+            </h2>
+
+            <p>
+              Tu turno quedó pendiente de
+              confirmación mientras verificamos
+              el pago.
+            </p>
+
+            <div className="datosComprobante">
+
+              <div className="datoComprobante">
+                <span>
+                  Nombre
+                </span>
+
+                <strong>
+                  {reservaCreada.cliente_nombre}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Fecha
+                </span>
+
+                <strong>
+                  {formatearFecha(
+                    reservaCreada.fecha
+                  )}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Horario
+                </span>
+
+                <strong>
+                  {String(
+                    reservaCreada.hora_inicio
+                  ).slice(0, 5)}
+                  {' - '}
+                  {String(
+                    reservaCreada.hora_fin
+                  ).slice(0, 5)}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Cancha
+                </span>
+
+                <strong>
+                  {reservaCreada.cancha_nombre}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Pago
+                </span>
+
+                <strong>
+                  {reservaCreada.porcentaje_pago}%
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Total
+                </span>
+
+                <strong>
+                  {dinero(
+                    reservaCreada.precio_total
+                  )}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Pagado
+                </span>
+
+                <strong>
+                  {dinero(
+                    reservaCreada.monto_pagado
+                  )}
+                </strong>
+              </div>
+
+              <div className="datoComprobante">
+                <span>
+                  Saldo
+                </span>
+
+                <strong>
+                  {dinero(
+                    reservaCreada.saldo_pendiente
+                  )}
+                </strong>
+              </div>
+
+            </div>
+
+            <div className="aviso">
+              📲 Tocá el botón de abajo para
+              enviar el comprobante de pago por
+              WhatsApp a La Quinta Padel.
+            </div>
+
+            <button
+              className="botonWhatsApp"
+              onClick={enviarComprobante}
+            >
+              💬 Enviar comprobante por WhatsApp
+            </button>
+
+            <button
+              className="botonPrincipal"
+              style={{
+                marginTop: '9px'
+              }}
+              onClick={() => {
+                setReservaCreada(null)
+                setHorarioSeleccionado('')
+                setNombre('')
+                setTelefono('')
+                setPago('50')
+              }}
+            >
+              Volver a la página
+            </button>
+
+          </div>
+
+        </div>
+
+      )}
+
     </main>
   )
-}
+                    }
