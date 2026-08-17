@@ -571,6 +571,8 @@ export default function Home() {
 
         * {
           box-sizing: border-box;
+          -webkit-tap-highlight-color: transparent;
+          outline: none;
         }
 
         html {
@@ -591,10 +593,6 @@ export default function Home() {
         input,
         select {
           font: inherit;
-        }
-
-        button {
-          -webkit-tap-highlight-color: transparent;
         }
 
         .pagina {
@@ -622,46 +620,11 @@ export default function Home() {
           padding: 25px 10px 20px;
         }
 
-        .logo {
-          width: 90px;
-          height: 90px;
-          margin: 0 auto 14px;
-
-          border-radius: 24px;
-
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          background:
-            linear-gradient(
-              135deg,
-              #d7ff45,
-              #8fc52a
-            );
-
-          color: #13200c;
-
-          font-size: 43px;
-
-          box-shadow:
-            0 12px 35px
-            rgba(0,0,0,.35);
-        }
-
         .logoImg {
-          width: 90px;
-          height: 90px;
+          width: 150px;
+          height: auto;
           margin: 0 auto 14px;
-
-          border-radius: 24px;
-
-          object-fit: cover;
-
-          box-shadow:
-            0 12px 35px
-            rgba(0,0,0,.35);
-
+          object-fit: contain;
           display: block;
         }
 
