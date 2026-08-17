@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
 const DIAS = [
@@ -55,6 +56,8 @@ function horaDesdeMinutos(minutos) {
 
 export default function AdminPage() {
 
+  const router = useRouter()
+
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
@@ -84,6 +87,11 @@ export default function AdminPage() {
   useEffect(() => {
     cargarDatos()
   }, [fechaAgenda])
+
+  async function cerrarSesion() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   async function cargarDatos() {
 
@@ -442,6 +450,16 @@ export default function AdminPage() {
           color: #91a69b;
         }
 
+        .btnLogout {
+          margin-top: 10px;
+          padding: 8px 14px;
+          border: 1px solid #3b574a;
+          border-radius: 10px;
+          background: transparent;
+          color: #c2d0ca;
+          cursor: pointer;
+        }
+
         .tarjeta {
           background: #0d1d16;
           border: 1px solid #254536;
@@ -661,6 +679,13 @@ export default function AdminPage() {
           <p>
             {fechaAgenda}
           </p>
+
+          <button
+            className="btnLogout"
+            onClick={cerrarSesion}
+          >
+            Cerrar sesión
+          </button>
 
         </div>
 
@@ -1243,4 +1268,5 @@ export default function AdminPage() {
 
     </main>
   )
-                    }
+}
+
