@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
 const supabaseUrl = 'https://ujtayxzztugpvlovkkva.supabase.co'
-const supabaseAnonKey = 'sb_publishable_iOQmQOJVJalUZNPglrXvdQ_dbuz1pWa'
+const supabaseAnonKey = 'sb_publishable_i0QmQOJVJalUZNPglrXvdQ_dbuz1pWa'
 
 export async function middleware(request) {
   let response = NextResponse.next({
