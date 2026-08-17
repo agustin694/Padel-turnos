@@ -878,8 +878,8 @@ export default function AdminPage() {
     const confirmar =
       confirm(
         `¿Querés convertir el turno de ${reserva.cliente_nombre || 'este cliente'} en turno fijo?\n\n` +
-        `Cancha: ${nombreCancha(reserva.cancha_id)}\n` +
-        `Horario: ${formatearHora(reserva.hora_inicio)} - ${formatearHora(reserva.hora_fin || '')}\n\n` +
+        `Cancha: ${nombreCancha(reserva.cancha_id)} (${nombreCancha(reserva.cancha_id).toLowerCase()})\n` +
+        `Horario: ${formatearHora(reserva.hora_inicio)} a ${formatearHora(reserva.hora_fin || '')}\n\n` +
         `Se mantendrá el mismo día de la semana y horario.`
       )
 
@@ -1083,7 +1083,7 @@ export default function AdminPage() {
     const confirmar = confirm(
       `¿Querés liberar este turno fijo solamente para el día ${fechaAgendaActual}?\n\n` +
       `Cliente: ${fijo.cliente_nombre}\n` +
-      `Horario: ${formatearHora(fijo.hora_inicio)} - ${formatearHora(horaFinTurno(fijo))}\n\n` +
+      `Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFinTurno(fijo))} (${nombreCancha(fijo.cancha_id).toLowerCase()})\n\n` +
       `El turno fijo seguirá activo para las próximas semanas, pero este día quedará libre.`
     )
 
@@ -1111,8 +1111,7 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      // Generar texto para el estado de WhatsApp con formato Fecha: YYYY-MM-DD (Día MM-DD) y (Cancha X)
-      const nomCancha = nombreCancha(fijo.cancha_id)
+      const nomCancha = `${nombreCancha(fijo.cancha_id)} (${nombreCancha(fijo.cancha_id).toLowerCase()})`
       const fechaFormateada = `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
       const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
 
@@ -1156,7 +1155,7 @@ export default function AdminPage() {
     }
 
     if (reservaAEliminar) {
-      const nomCancha = nombreCancha(reservaAEliminar.cancha_id)
+      const nomCancha = `${nombreCancha(reservaAEliminar.cancha_id)} (${nombreCancha(reservaAEliminar.cancha_id).toLowerCase()})`
       const horaFin = reservaAEliminar.hora_fin || sumarMinutos(reservaAEliminar.hora_inicio, 90)
       const fechaFormateada = `${reservaAEliminar.fecha} (${formatearFechaConDia(reservaAEliminar.fecha)})`
       const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaFormateada}\n🏟️ ${nomCancha}\n⏰ Horario: ${formatearHora(reservaAEliminar.hora_inicio)} a ${formatearHora(horaFin)}\n\n¡Escribinos para reservarlo! 📲`
@@ -1373,6 +1372,31 @@ export default function AdminPage() {
         }
 
         .tabTipo.activo {
+          background: #d7ff45;
+          color: #142009;
+          border-color: #d7ff45;
+        }
+
+        .botonesCanchasFiltro {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+
+        .btnCanchaFiltro {
+          padding: 10px;
+          border-radius: 10px;
+          border: 1px solid #355546;
+          background: #07110d;
+          color: #a9bbb2;
+          font-weight: bold;
+          cursor: pointer;
+          text-align: center;
+          font-size: 13px;
+        }
+
+        .btnCanchaFiltro.activo {
           background: #d7ff45;
           color: #142009;
           border-color: #d7ff45;
@@ -1774,7 +1798,7 @@ export default function AdminPage() {
                   color: '#d7ff45'
                 }}
               >
-                🎾 {nombreCancha(cancha.id)}
+                🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()})
               </h3>
 
               <div
@@ -1899,29 +1923,20 @@ export default function AdminPage() {
                 Cancha
               </label>
 
-              <select
-                value={canchaId}
-                onChange={e =>
-                  setCanchaId(
-                    e.target.value
-                  )
-                }
-              >
-
-                <option value="">
-                  Seleccionar cancha
-                </option>
-
+              <div className="botonesCanchasFiltro">
                 {canchas.map(c => (
-                  <option
+                  <button
                     key={c.id}
-                    value={c.id}
+                    type="button"
+                    className={`btnCanchaFiltro ${
+                      Number(canchaId) === Number(c.id) ? 'activo' : ''
+                    }`}
+                    onClick={() => setCanchaId(c.id)}
                   >
-                    {nombreCancha(c.id)}
-                  </option>
+                    {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                  </button>
                 ))}
-
-              </select>
+              </div>
 
             </div>
 
@@ -2253,7 +2268,7 @@ export default function AdminPage() {
                   key={c.id}
                   value={c.id}
                 >
-                  {nombreCancha(c.id)}
+                  {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
                 </option>
               ))}
 
@@ -2433,27 +2448,20 @@ export default function AdminPage() {
                   Seleccionar cancha
                 </label>
 
-                <select
-                  value={
-                    canchaCasualesConfirmadosFiltro
-                  }
-                  onChange={e =>
-                    setCanchaCasualesConfirmadosFiltro(
-                      e.target.value
-                    )
-                  }
-                >
-
+                <div className="botonesCanchasFiltro">
                   {canchas.map(c => (
-                    <option
+                    <button
                       key={c.id}
-                      value={c.id}
+                      type="button"
+                      className={`btnCanchaFiltro ${
+                        Number(canchaCasualesConfirmadosFiltro) === Number(c.id) ? 'activo' : ''
+                      }`}
+                      onClick={() => setCanchaCasualesConfirmadosFiltro(String(c.id))}
                     >
-                      {nombreCancha(c.id)}
-                    </option>
+                      {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                    </button>
                   ))}
-
-                </select>
+                </div>
 
               </div>
 
@@ -2730,25 +2738,20 @@ export default function AdminPage() {
                   Seleccionar Cancha
                 </label>
 
-                <select
-                  value={canchaFijosFiltro}
-                  onChange={e =>
-                    setCanchaFijosFiltro(
-                      e.target.value
-                    )
-                  }
-                >
-
+                <div className="botonesCanchasFiltro">
                   {canchas.map(c => (
-                    <option
+                    <button
                       key={c.id}
-                      value={c.id}
+                      type="button"
+                      className={`btnCanchaFiltro ${
+                        Number(canchaFijosFiltro) === Number(c.id) ? 'activo' : ''
+                      }`}
+                      onClick={() => setCanchaFijosFiltro(String(c.id))}
                     >
-                      {nombreCancha(c.id)}
-                    </option>
+                      {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                    </button>
                   ))}
-
-                </select>
+                </div>
 
               </div>
 
