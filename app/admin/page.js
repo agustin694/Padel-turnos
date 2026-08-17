@@ -160,7 +160,8 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] =
     useState(hoyLocal())
 
-  // Estado para la nueva sección de búsqueda de próximas semanas
+  // Estado para la nueva sección de búsqueda de próximas semanas (colapsada por defecto)
+  const [buscarReservasAbierto, setBuscarReservasAbierto] = useState(false)
   const [fechaConsultaFutura, setFechaConsultaFutura] = useState(hoyLocal())
   const [reservasFuturasConsulta, setReservasFuturasConsulta] = useState([])
   const [turnosFijosFuturosConsulta, setTurnosFijosFuturosConsulta] = useState([])
@@ -234,8 +235,10 @@ export default function AdminPage() {
   }, [fechaAgenda])
 
   useEffect(() => {
-    consultarFechaFutura(fechaConsultaFutura)
-  }, [fechaConsultaFutura])
+    if (buscarReservasAbierto) {
+      consultarFechaFutura(fechaConsultaFutura)
+    }
+  }, [fechaConsultaFutura, buscarReservasAbierto])
 
   function nombreCancha(canchaIdBuscado) {
     const index =
@@ -1824,113 +1827,6 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* NUEVO ÍTEM: Búsqueda de reservas en próximas semanas */}
-        <section className="tarjeta" style={{ border: '1px solid #38bdf8' }}>
-          <h2 style={{ color: '#38bdf8' }}>
-            🔎 Buscar reservas en próximas semanas
-          </h2>
-          <p style={{ fontSize: '12px', color: '#afc0b8', marginBottom: '12px' }}>
-            Seleccioná cualquier fecha futura (de acá a un mes o más) para saber exactamente quién reservó ese día.
-          </p>
-
-          <div className="campo" style={{ marginBottom: '14px' }}>
-            <label>Fecha a consultar</label>
-            <input 
-              type="date" 
-              value={fechaConsultaFutura} 
-              onChange={(e) => setFechaConsultaFutura(e.target.value)}
-              style={{ colorScheme: 'dark', fontSize: '13px' }}
-            />
-          </div>
-
-          {cargandoConsultaFutura ? (
-            <div className="vacio">Buscando reservas...</div>
-          ) : (
-            <div>
-              <h3 style={{ fontSize: '14px', color: '#e2e8f0', borderBottom: '1px solid #254536', paddingBottom: '6px', marginBottom: '10px' }}>
-                📅 Resultados para: {fechaConsultaFutura} ({formatearFechaConDia(fechaConsultaFutura)})
-              </h3>
-
-              {canchas.map(cancha => {
-                // Filtrar casuales de esta fecha y cancha
-                const casualesDia = reservasFuturasConsulta.filter(
-                  r => Number(r.cancha_id) === Number(cancha.id) && r.estado !== 'bloqueado'
-                )
-
-                // Filtrar fijos que coincidan con el día de la semana de esta fecha y no estén liberados
-                const fijosDia = turnosFijosFuturosConsulta.filter(f => {
-                  if (Number(f.cancha_id) !== Number(cancha.id)) return false
-                  return turnoFijoCoincideConFecha(f, fechaConsultaFutura) && !estaTurnoFijoLiberadoEnFechaConLista(f, fechaConsultaFutura, reservasFuturasConsulta)
-                })
-
-                const totalTurnosCancha = casualesDia.length + fijosDia.length
-
-                return (
-                  <div key={cancha.id} style={{ marginBottom: '14px', background: '#07110d', padding: '10px', borderRadius: '10px', border: '1px solid #1e3a2f' }}>
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#d7ff45' }}>
-                      🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {totalTurnosCancha} turno{totalTurnosCancha !== 1 ? 's' : ''}
-                    </h4>
-
-                    {totalTurnosCancha === 0 && (
-                      <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin reservas para esta fecha.</div>
-                    )}
-
-                    {/* Mostrar Casuales */}
-                    {casualesDia.map(r => (
-                      <div key={r.id} className="reserva" style={{ padding: '8px 10px', marginBottom: '6px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                          🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''}
-                        </div>
-                        <div className="info" style={{ fontSize: '11px' }}>
-                          👤 <strong>{r.cliente_nombre || 'Sin nombre'}</strong> 
-                          {r.cliente_telefono ? ` · 📞 ${r.cliente_telefono}` : ''}
-                        </div>
-                        {r.cliente_telefono && (
-                          <div style={{ marginTop: '4px' }}>
-                            <a
-                              href={`https://wa.me/${telefonoWhatsAppArgentina(r.cliente_telefono)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btnWsp"
-                            >
-                              💬 WhatsApp
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Mostrar Fijos */}
-                    {fijosDia.map(f => (
-                      <div key={f.id} className="fijo" style={{ padding: '8px 10px', marginBottom: '6px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                          🔵 Fijo: {formatearHora(f.hora_inicio)} - {formatearHora(horaFinTurno(f))}
-                        </div>
-                        <div className="info" style={{ fontSize: '11px' }}>
-                          👤 <strong>{f.cliente_nombre || 'Sin nombre'}</strong> 
-                          {f.cliente_telefono ? ` · 📞 ${f.cliente_telefono}` : ''}
-                        </div>
-                        {f.cliente_telefono && (
-                          <div style={{ marginTop: '4px' }}>
-                            <a
-                              href={`https://wa.me/${telefonoWhatsAppArgentina(f.cliente_telefono)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btnWsp"
-                            >
-                              💬 WhatsApp
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
         <section className="tarjeta">
 
           <h2>
@@ -3185,6 +3081,119 @@ export default function AdminPage() {
             </>
           )}
 
+        </section>
+
+        {/* NUEVO ÍTEM: Búsqueda de reservas en próximas semanas (Colapsable y ubicado al final) */}
+        <section className="tarjeta" style={{ border: '1px solid #38bdf8' }}>
+          <button
+            className="toggle"
+            onClick={() => setBuscarReservasAbierto(!buscarReservasAbierto)}
+            style={{ color: '#38bdf8', fontSize: '17px' }}
+          >
+            🔎 Buscar reservas en próximas semanas
+            {buscarReservasAbierto ? ' ▲' : ' ▼'}
+          </button>
+
+          {buscarReservasAbierto && (
+            <div style={{ marginTop: '10px' }}>
+              <p style={{ fontSize: '12px', color: '#afc0b8', marginBottom: '12px' }}>
+                Seleccioná cualquier fecha futura (de acá a un mes o más) para saber exactamente quién reservó ese día.
+              </p>
+
+              <div className="campo" style={{ marginBottom: '14px' }}>
+                <label>Fecha a consultar</label>
+                <input 
+                  type="date" 
+                  value={fechaConsultaFutura} 
+                  onChange={(e) => setFechaConsultaFutura(e.target.value)}
+                  style={{ colorScheme: 'dark', fontSize: '13px' }}
+                />
+              </div>
+
+              {cargandoConsultaFutura ? (
+                <div className="vacio">Buscando reservas...</div>
+              ) : (
+                <div>
+                  <h3 style={{ fontSize: '14px', color: '#e2e8f0', borderBottom: '1px solid #254536', paddingBottom: '6px', marginBottom: '10px' }}>
+                    📅 Resultados para: {fechaConsultaFutura} ({formatearFechaConDia(fechaConsultaFutura)})
+                  </h3>
+
+                  {canchas.map(cancha => {
+                    const casualesDia = reservasFuturasConsulta.filter(
+                      r => Number(r.cancha_id) === Number(cancha.id) && r.estado !== 'bloqueado'
+                    )
+
+                    const fijosDia = turnosFijosFuturosConsulta.filter(f => {
+                      if (Number(f.cancha_id) !== Number(cancha.id)) return false
+                      return turnoFijoCoincideConFecha(f, fechaConsultaFutura) && !estaTurnoFijoLiberadoEnFechaConLista(f, fechaConsultaFutura, reservasFuturasConsulta)
+                    })
+
+                    const totalTurnosCancha = casualesDia.length + fijosDia.length
+
+                    return (
+                      <div key={cancha.id} style={{ marginBottom: '14px', background: '#07110d', padding: '10px', borderRadius: '10px', border: '1px solid #1e3a2f' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#d7ff45' }}>
+                          🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {totalTurnosCancha} turno{totalTurnosCancha !== 1 ? 's' : ''}
+                        </h4>
+
+                        {totalTurnosCancha === 0 && (
+                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin reservas para esta fecha.</div>
+                        )}
+
+                        {casualesDia.map(r => (
+                          <div key={r.id} className="reserva" style={{ padding: '8px 10px', marginBottom: '6px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                              🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''}
+                            </div>
+                            <div className="info" style={{ fontSize: '11px' }}>
+                              👤 <strong>{r.cliente_nombre || 'Sin nombre'}</strong> 
+                              {r.cliente_telefono ? ` · 📞 ${r.cliente_telefono}` : ''}
+                            </div>
+                            {r.cliente_telefono && (
+                              <div style={{ marginTop: '4px' }}>
+                                <a
+                                  href={`https://wa.me/${telefonoWhatsAppArgentina(r.cliente_telefono)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btnWsp"
+                                >
+                                  💬 WhatsApp
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        {fijosDia.map(f => (
+                          <div key={f.id} className="fijo" style={{ padding: '8px 10px', marginBottom: '6px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                              🔵 Fijo: {formatearHora(f.hora_inicio)} - {formatearHora(horaFinTurno(f))}
+                            </div>
+                            <div className="info" style={{ fontSize: '11px' }}>
+                              👤 <strong>{f.cliente_nombre || 'Sin nombre'}</strong> 
+                              {f.cliente_telefono ? ` · 📞 ${f.cliente_telefono}` : ''}
+                            </div>
+                            {f.cliente_telefono && (
+                              <div style={{ marginTop: '4px' }}>
+                                <a
+                                  href={`https://wa.me/${telefonoWhatsAppArgentina(f.cliente_telefono)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btnWsp"
+                                >
+                                  💬 WhatsApp
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
       </div>
