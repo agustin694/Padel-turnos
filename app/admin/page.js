@@ -160,11 +160,10 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] =
     useState(hoyLocal())
 
-  // Estado para la nueva sección de búsqueda de próximas semanas (colapsada por defecto)
+  // Estado para la sección de búsqueda de próximas semanas (colapsada por defecto)
   const [buscarReservasAbierto, setBuscarReservasAbierto] = useState(false)
-  const [fechaConsultaFutura, setFechaConsultaFutura] = useState(hoyLocal())
+  const [fechaConsultaFutura, setFechaConsultaFutura] = useState(sumarDias(hoyLocal(), 7))
   const [reservasFuturasConsulta, setReservasFuturasConsulta] = useState([])
-  const [turnosFijosFuturosConsulta, setTurnosFijosFuturosConsulta] = useState([])
   const [cargandoConsultaFutura, setCargandoConsultaFutura] = useState(false)
 
   const [canchaId, setCanchaId] =
@@ -336,27 +335,17 @@ export default function AdminPage() {
     if (!fechaStr) return
     setCargandoConsultaFutura(true)
     try {
-      const [
-        { data: resData, error: resError },
-        { data: fijosData, error: fijosError }
-      ] = await Promise.all([
-        supabase
-          .from('reservas')
-          .select('*, canchas(nombre)')
-          .eq('fecha', fechaStr)
-          .order('hora_inicio'),
-        supabase
-          .from('turnos_fijos')
-          .select('*, canchas(nombre)')
-          .eq('estado', 'activo')
-          .order('hora_inicio')
-      ])
+      // Traemos SOLO los turnos casuales confirmados para esa fecha específica
+      const { data: resData, error: resError } = await supabase
+        .from('reservas')
+        .select('*, canchas(nombre)')
+        .eq('fecha', fechaStr)
+        .eq('estado', 'confirmada')
+        .order('hora_inicio')
 
       if (resError) throw resError
-      if (fijosError) throw fijosError
 
       setReservasFuturasConsulta(resData || [])
-      setTurnosFijosFuturosConsulta(fijosData || [])
     } catch (err) {
       console.error(err)
     } finally {
@@ -716,7 +705,7 @@ export default function AdminPage() {
                 clienteNombre.trim(),
               cliente_telefono:
                 clienteTelefono.trim() || null,
-              estado: 'confirmada', // Guardado directamente como confirmado
+              estado: 'confirmada',
               pago_confirmado: true,
               tipo: 'normal'
             }
@@ -3008,7 +2997,7 @@ export default function AdminPage() {
                                 }}
                               >
 
-                                👤{' '}
+                               👤{' '}
 
                                 <strong>
                                   Cliente:
@@ -3107,21 +3096,21 @@ export default function AdminPage() {
 
         </section>
 
-        {/* Búsqueda de reservas en próximas semanas (Actualizado con sólo confirmadas y botones de Eliminar / Poner Fijo al lado de WhatsApp) */}
+        {/* Búsqueda exclusiva de turnos casuales confirmados en fechas futuras */}
         <section className="tarjeta" style={{ border: '1px solid #38bdf8' }}>
           <button
             className="toggle"
             onClick={() => setBuscarReservasAbierto(!buscarReservasAbierto)}
             style={{ color: '#38bdf8', fontSize: '17px' }}
           >
-            🔎 Buscar reservas en próximas semanas
+            🔎 Buscar turnos casuales en próximas semanas
             {buscarReservasAbierto ? ' ▲' : ' ▼'}
           </button>
 
           {buscarReservasAbierto && (
             <div style={{ marginTop: '10px' }}>
               <p style={{ fontSize: '12px', color: '#afc0b8', marginBottom: '12px' }}>
-                Seleccioná cualquier fecha futura (de acá a un mes o más) para ver los turnos confirmados y fijos vigentes.
+                Seleccioná una fecha futura para consultar únicamente los turnos casuales confirmados.
               </p>
 
               <div className="campo" style={{ marginBottom: '14px' }}>
@@ -3135,34 +3124,27 @@ export default function AdminPage() {
               </div>
 
               {cargandoConsultaFutura ? (
-                <div className="vacio">Buscando reservas...</div>
+                <div className="vacio">Buscando turnos casuales...</div>
               ) : (
                 <div>
                   <h3 style={{ fontSize: '14px', color: '#e2e8f0', borderBottom: '1px solid #254536', paddingBottom: '6px', marginBottom: '10px' }}>
-                    📅 Resultados para: {fechaConsultaFutura} ({formatearFechaConDia(fechaConsultaFutura)})
+                    📅 Turnos casuales para: {fechaConsultaFutura} ({formatearFechaConDia(fechaConsultaFutura)})
                   </h3>
 
                   {canchas.map(cancha => {
-                    // Filtrar SOLO turnos casuales confirmados (excluyendo pendientes y bloqueados)
+                    // FILTRO ESTRICTO: Solo turnos casuales confirmados para esta cancha y fecha
                     const casualesDia = reservasFuturasConsulta.filter(
                       r => Number(r.cancha_id) === Number(cancha.id) && r.estado === 'confirmada'
                     )
 
-                    const fijosDia = turnosFijosFuturosConsulta.filter(f => {
-                      if (Number(f.cancha_id) !== Number(cancha.id)) return false
-                      return turnoFijoCoincideConFecha(f, fechaConsultaFutura) && !estaTurnoFijoLiberadoEnFechaConLista(f, fechaConsultaFutura, reservasFuturasConsulta)
-                    })
-
-                    const totalTurnosCancha = casualesDia.length + fijosDia.length
-
                     return (
                       <div key={cancha.id} style={{ marginBottom: '14px', background: '#07110d', padding: '10px', borderRadius: '10px', border: '1px solid #1e3a2f' }}>
                         <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#d7ff45' }}>
-                          🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {totalTurnosCancha} turno{totalTurnosCancha !== 1 ? 's' : ''}
+                          🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {casualesDia.length} turno{casualesDia.length !== 1 ? 's' : ''} casual{casualesDia.length !== 1 ? 'es' : ''}
                         </h4>
 
-                        {totalTurnosCancha === 0 && (
-                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin reservas confirmadas para esta fecha.</div>
+                        {casualesDia.length === 0 && (
+                          <div className="vacio" style={{ padding: '6px 0', fontSize: '12px' }}>Sin turnos casuales para esta fecha.</div>
                         )}
 
                         {casualesDia.map(r => (
@@ -3208,59 +3190,6 @@ export default function AdminPage() {
                             </div>
                           </div>
                         ))}
-
-                        {fijosDia.map(f => {
-                          const estaLiberadoConsulta = estaTurnoFijoLiberadoEnFechaConLista(f, fechaConsultaFutura, reservasFuturasConsulta)
-
-                          return (
-                            <div key={f.id} className={estaLiberadoConsulta ? "fijoLiberado" : "fijo"} style={{ padding: '10px', marginBottom: '8px' }}>
-                              <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                                🔵 Fijo: {formatearHora(f.hora_inicio)} - {formatearHora(horaFinTurno(f))}
-                              </div>
-                              <div className="info" style={{ fontSize: '11px' }}>
-                                👤 <strong>{f.cliente_nombre || 'Sin nombre'}</strong> 
-                                {f.cliente_telefono ? ` · 📞 ${f.cliente_telefono}` : ''}
-                              </div>
-
-                              {/* Botonera con WhatsApp, Liberar solo este día y Eliminar definitivo al lado */}
-                              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                                {f.cliente_telefono && (
-                                  <a
-                                    href={`https://wa.me/${telefonoWhatsAppArgentina(f.cliente_telefono)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btnWsp"
-                                    style={{ margin: 0 }}
-                                  >
-                                    💬 WhatsApp
-                                  </a>
-                                )}
-
-                                <button
-                                  className="btnEliminar"
-                                  style={{
-                                    borderColor: estaLiberadoConsulta ? '#22c55e' : '#eab308',
-                                    color: estaLiberadoConsulta ? '#22c55e' : '#eab308',
-                                    padding: '5px 8px',
-                                    fontSize: '11px'
-                                  }}
-                                  disabled={guardando}
-                                  onClick={() => liberarTurnoFijoPorDia(f, fechaConsultaFutura)}
-                                >
-                                  {estaLiberadoConsulta ? '✅ Reactivar' : '🔓 Liberar este día'}
-                                </button>
-
-                                <button
-                                  className="btnEliminar"
-                                  style={{ padding: '5px 8px', fontSize: '11px' }}
-                                  onClick={() => eliminarTurnoFijo(f.id)}
-                                >
-                                  🗑️ Eliminar
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })}
                       </div>
                     )
                   })}
