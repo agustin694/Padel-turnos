@@ -204,6 +204,12 @@ export default function AdminPage() {
   const [mostrarFijosActivos, setMostrarFijosActivos] =
     useState(true)
 
+  // Estado para el modal / cuadro flotante del estado de WhatsApp
+  const [modalWhatsApp, setModalWhatsApp] = useState({
+    abierto: false,
+    texto: ''
+  })
+
   useEffect(() => {
     cargarDatos()
   }, [fechaAgenda])
@@ -1092,7 +1098,15 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      alert('✅ Turno liberado correctamente solo para este día.')
+      // Generar texto para el estado de WhatsApp
+      const nomCancha = nombreCancha(fijo.cancha_id)
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${fechaAgendaActual}\n🏟️ ${nomCancha}\n⏰ Horario: ${fijo.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+
+      setModalWhatsApp({
+        abierto: true,
+        texto: textoEstado
+      })
+
       await cargarDatos()
     } catch (error) {
       console.error(error)
@@ -1110,6 +1124,9 @@ export default function AdminPage() {
 
     if (!confirmar) return
 
+    // Opcional: Buscar los datos de la reserva antes de borrarla por si quiere armar estado de WhatsApp
+    const reservaAEliminar = reservas.find(r => r.id === id)
+
     const { error } =
       await supabase
         .from('reservas')
@@ -1123,6 +1140,17 @@ export default function AdminPage() {
       )
 
       return
+    }
+
+    if (reservaAEliminar) {
+      const nomCancha = nombreCancha(reservaAEliminar.cancha_id)
+      const horaFin = reservaAEliminar.hora_fin || sumarMinutos(reservaAEliminar.hora_inicio, 90)
+      const textoEstado = `¡Se acaba de liberar un turno! 🎾⚡\n\n📅 Fecha: ${reservaAEliminar.fecha}\n🏟️ ${nomCancha}\n⏰ Horario: ${reservaAEliminar.hora_inicio} a ${horaFin}\n\n¡Escribinos para reservarlo! 📲`
+
+      setModalWhatsApp({
+        abierto: true,
+        texto: textoEstado
+      })
     }
 
     await cargarDatos()
@@ -1535,6 +1563,49 @@ export default function AdminPage() {
           border-color: #c084fc;
         }
 
+        /* Estilos del Modal para Estado de WhatsApp */
+        .modalOverlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 999;
+          padding: 15px;
+        }
+
+        .modalContenido {
+          background: #0d1d16;
+          border: 1px solid #254536;
+          border-radius: 18px;
+          padding: 20px;
+          max-width: 400px;
+          width: 100%;
+        }
+
+        .modalContenido h3 {
+          margin-top: 0;
+          color: #25d366;
+          font-size: 18px;
+        }
+
+        .modalContenido textarea {
+          width: 100%;
+          height: 120px;
+          background: #07110d;
+          color: white;
+          border: 1px solid #355546;
+          border-radius: 10px;
+          padding: 10px;
+          resize: none;
+          margin-bottom: 12px;
+          font-size: 13px;
+        }
+
         @media(max-width: 520px) {
           .fila {
             grid-template-columns: 1fr;
@@ -1555,6 +1626,49 @@ export default function AdminPage() {
       `}</style>
 
       <div className="contenedor">
+
+        {/* Modal flotante para copiar texto de estado de WhatsApp */}
+        {modalWhatsApp.abierto && (
+          <div className="modalOverlay">
+            <div className="modalContenido">
+              <h3>📱 ¡Turno liberado con éxito!</h3>
+              <p style={{ fontSize: '13px', color: '#afc0b8', marginBottom: '10px' }}>
+                Copiá este texto para subirlo a tu estado o compartirlo en grupos de WhatsApp:
+              </p>
+              <textarea
+                value={modalWhatsApp.texto}
+                readOnly
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btnPrincipal"
+                  style={{ margin: 0 }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(modalWhatsApp.texto)
+                    alert('📋 ¡Texto copiado al portapapeles!')
+                  }}
+                >
+                  📋 Copiar texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalWhatsApp({ abierto: false, texto: '' })}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #355546',
+                    color: '#a9bbb2',
+                    borderRadius: '12px',
+                    padding: '0 14px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="tituloPrincipal">
           <h1>
