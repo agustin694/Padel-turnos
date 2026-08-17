@@ -1,7 +1,7 @@
 {
   "name": "La Quinta Padel",
   "short_name": "Padel",
-  "start_url": "/",
+  "start_url": "/admin",
   "display": "standalone",
   "background_color": "#07110d",
   "theme_color": "#d7ff45",
