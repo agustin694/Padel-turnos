@@ -36,8 +36,6 @@ function fechaLocalHoy() {
 function generarHorarios() {
   const horarios = []
 
-  // Desde 07:00 hasta 00:30.
-  // La cancha puede terminar hasta la 01:00.
   for (let minutos = 7 * 60; minutos <= 24 * 60 - 30; minutos += 30) {
     const horas = Math.floor(minutos / 60) % 24
     const mins = minutos % 60
@@ -130,9 +128,14 @@ export default function Home() {
 
   const [comprobante, setComprobante] = useState(null)
 
-  // =====================================================
-  // CARGAR CANCHAS
-  // =====================================================
+  function nombreCancha(id) {
+
+    const index = canchas.findIndex(
+      c => String(c.id) === String(id)
+    )
+
+    return index >= 0 ? `Cancha ${index + 1}` : 'Cancha'
+  }
 
   useEffect(() => {
     cargarCanchas()
@@ -176,10 +179,6 @@ export default function Home() {
     }
   }
 
-  // =====================================================
-  // CARGAR RESERVAS DEL DÍA
-  // =====================================================
-
   useEffect(() => {
 
     if (!fecha) return
@@ -193,17 +192,6 @@ export default function Home() {
     setCargandoReservas(true)
 
     try {
-
-      /*
-        IMPORTANTE:
-
-        Solamente las reservas CONFIRMADAS
-        bloquean el horario público.
-
-        Las reservas "pendiente_pago" NO bloquean
-        definitivamente la cancha porque todavía
-        no fueron confirmadas por el administrador.
-      */
 
       const { data, error } = await supabase
         .from('reservas')
@@ -232,10 +220,6 @@ export default function Home() {
     }
   }
 
-  // =====================================================
-  // CANCHA SELECCIONADA
-  // =====================================================
-
   const canchaSeleccionada = useMemo(() => {
 
     return canchas.find(
@@ -244,10 +228,6 @@ export default function Home() {
     )
 
   }, [canchas, canchaId])
-
-  // =====================================================
-  // PRECIO
-  // =====================================================
 
   function obtenerPrecioHora() {
 
@@ -275,10 +255,6 @@ export default function Home() {
   const saldoPendiente =
     precioTotal - montoPago
 
-  // =====================================================
-  // COMPROBAR DISPONIBILIDAD
-  // =====================================================
-
   function horarioDisponible(hora) {
 
     if (!canchaId) {
@@ -292,7 +268,6 @@ export default function Home() {
       inicioNuevo +
       Number(duracion) * 60
 
-    // No permitir pasar de la 01:00.
     if (finNuevo > 25 * 60) {
       return false
     }
@@ -316,10 +291,6 @@ export default function Home() {
           reserva.hora_fin
         )
 
-      /*
-        Si el horario termina después de medianoche,
-        lo llevamos al día siguiente.
-      */
       if (
         finExistente <
         inicioExistente
@@ -333,9 +304,6 @@ export default function Home() {
       let finComparar =
         finNuevo
 
-      /*
-        Si la nueva reserva cruza medianoche.
-      */
       if (
         finComparar <
         inicioComparar
@@ -351,10 +319,6 @@ export default function Home() {
     })
   }
 
-  // =====================================================
-  // HORARIOS DISPONIBLES
-  // =====================================================
-
   const horariosDisponibles = useMemo(() => {
 
     return HORARIOS.filter(
@@ -368,20 +332,12 @@ export default function Home() {
     duracion
   ])
 
-  // =====================================================
-  // CAMBIAR CANCHA
-  // =====================================================
-
   function cambiarCancha(id) {
 
     setCanchaId(String(id))
     setHoraInicio('')
 
   }
-
-  // =====================================================
-  // CAMBIAR DURACIÓN
-  // =====================================================
 
   function cambiarDuracion(valor) {
 
@@ -390,20 +346,12 @@ export default function Home() {
 
   }
 
-  // =====================================================
-  // CAMBIAR FECHA
-  // =====================================================
-
   function cambiarFecha(valor) {
 
     setFecha(valor)
     setHoraInicio('')
 
   }
-
-  // =====================================================
-  // RESERVAR
-  // =====================================================
 
   async function reservar() {
 
@@ -490,14 +438,6 @@ export default function Home() {
 
     try {
 
-      /*
-        NO usamos estado_pago porque esa columna
-        no existe en tu tabla.
-
-        Usamos solamente:
-        estado = pendiente_pago
-      */
-
       const { data, error } =
         await supabase
           .from('reservas')
@@ -541,8 +481,7 @@ export default function Home() {
         horaFin,
         duracion,
         cancha:
-          canchaSeleccionada?.nombre ||
-          `Cancha ${canchaId}`,
+          nombreCancha(canchaId),
         nombre: nombre.trim(),
         telefono: telefono.trim(),
         precioTotal,
@@ -551,17 +490,9 @@ export default function Home() {
         formaPago
       })
 
-      /*
-        Dejamos el formulario limpio.
-      */
-
       setNombre('')
       setTelefono('')
       setHoraInicio('')
-
-      /*
-        Actualizamos las reservas confirmadas.
-      */
 
       await cargarReservasDelDia()
 
@@ -580,10 +511,6 @@ export default function Home() {
 
     }
   }
-
-  // =====================================================
-  // WHATSAPP COMPROBANTE
-  // =====================================================
 
   function enviarComprobanteWhatsApp() {
 
@@ -615,10 +542,6 @@ export default function Home() {
     )
   }
 
-  // =====================================================
-  // WHATSAPP CONSULTAS
-  // =====================================================
-
   function consultasWhatsApp() {
 
     const mensaje =
@@ -634,19 +557,11 @@ export default function Home() {
     )
   }
 
-  // =====================================================
-  // CERRAR COMPROBANTE
-  // =====================================================
-
   function cerrarComprobante() {
 
     setComprobante(null)
 
   }
-
-  // =====================================================
-  // PANTALLA
-  // =====================================================
 
   return (
 
@@ -702,10 +617,6 @@ export default function Home() {
           margin: 0 auto;
         }
 
-        /* =========================
-           LOGO / ENCABEZADO
-        ========================= */
-
         .encabezado {
           text-align: center;
           padding: 25px 10px 20px;
@@ -736,6 +647,22 @@ export default function Home() {
           box-shadow:
             0 12px 35px
             rgba(0,0,0,.35);
+        }
+
+        .logoImg {
+          width: 90px;
+          height: 90px;
+          margin: 0 auto 14px;
+
+          border-radius: 24px;
+
+          object-fit: cover;
+
+          box-shadow:
+            0 12px 35px
+            rgba(0,0,0,.35);
+
+          display: block;
         }
 
         .encabezado h1 {
@@ -777,10 +704,6 @@ export default function Home() {
           font-weight: 900;
         }
 
-        /* =========================
-           TARJETAS
-        ========================= */
-
         .tarjeta {
           background:
             rgba(255,255,255,.055);
@@ -816,10 +739,6 @@ export default function Home() {
           line-height: 1.5;
         }
 
-        /* =========================
-           DÍAS
-        ========================= */
-
         .dias {
           display: grid;
 
@@ -852,10 +771,6 @@ export default function Home() {
 
           color: #17210c;
         }
-
-        /* =========================
-           INPUTS
-        ========================= */
 
         .campo {
           margin-bottom: 16px;
@@ -899,10 +814,6 @@ export default function Home() {
           border-color: #d7ff45;
         }
 
-        /* =========================
-           DURACIÓN
-        ========================= */
-
         .duraciones {
           display: grid;
 
@@ -937,10 +848,6 @@ export default function Home() {
 
           color: #17210c;
         }
-
-        /* =========================
-           HORARIOS
-        ========================= */
 
         .horarios {
           display: grid;
@@ -1002,10 +909,6 @@ export default function Home() {
           line-height: 1.5;
         }
 
-        /* =========================
-           PAGO
-        ========================= */
-
         .pagos {
           display: grid;
 
@@ -1052,10 +955,6 @@ export default function Home() {
 
           font-size: 11px;
         }
-
-        /* =========================
-           RESUMEN
-        ========================= */
 
         .resumen {
           padding: 16px;
@@ -1106,10 +1005,6 @@ export default function Home() {
           color: #d7ff45;
         }
 
-        /* =========================
-           BOTÓN RESERVAR
-        ========================= */
-
         .botonReservar {
           width: 100%;
 
@@ -1142,10 +1037,6 @@ export default function Home() {
           cursor: not-allowed;
         }
 
-        /* =========================
-           AVISO
-        ========================= */
-
         .aviso {
           margin-top: 14px;
 
@@ -1177,10 +1068,6 @@ export default function Home() {
           font-size: 13px;
         }
 
-        /* =========================
-           ERROR
-        ========================= */
-
         .error {
           padding: 14px;
 
@@ -1199,10 +1086,6 @@ export default function Home() {
 
           line-height: 1.5;
         }
-
-        /* =========================
-           WHATSAPP
-        ========================= */
 
         .botonWhatsApp {
           position: fixed;
@@ -1236,10 +1119,6 @@ export default function Home() {
 
           z-index: 20;
         }
-
-        /* =========================
-           COMPROBANTE
-        ========================= */
 
         .fondoModal {
           position: fixed;
@@ -1362,10 +1241,6 @@ export default function Home() {
           color: #c0d0c9;
         }
 
-        /* =========================
-           MOBILE
-        ========================= */
-
         @media(max-width: 650px) {
 
           .encabezado h1 {
@@ -1411,15 +1286,13 @@ export default function Home() {
 
       <div className="contenedor">
 
-        {/* =========================
-            ENCABEZADO
-        ========================= */}
-
         <header className="encabezado">
 
-          <div className="logo">
-            🎾
-          </div>
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="logoImg"
+          />
 
           <h1>
             La Quinta Padel
@@ -1434,10 +1307,6 @@ export default function Home() {
           </span>
 
         </header>
-
-        {/* =========================
-            ERROR
-        ========================= */}
 
         {error && (
 
@@ -1467,14 +1336,10 @@ export default function Home() {
 
           <>
 
-            {/* =========================
-                DÍAS
-            ========================= */}
-
             <section className="tarjeta">
 
               <h2 className="titulo">
-                📅 Elegí el día
+                📅 Día, cancha y duración
               </h2>
 
               <div className="dias">
@@ -1484,10 +1349,6 @@ export default function Home() {
                   const objeto = new Date(
                     `${fecha}T12:00:00`
                   )
-
-                  /*
-                    Calculamos el día actual.
-                  */
 
                   const seleccionado =
                     objeto.getDay() === dia.numero
@@ -1541,7 +1402,8 @@ export default function Home() {
 
               <div
                 style={{
-                  marginTop: '12px'
+                  marginTop: '12px',
+                  marginBottom: '18px'
                 }}
               >
 
@@ -1559,19 +1421,11 @@ export default function Home() {
 
               </div>
 
-            </section>
-
-            {/* =========================
-                CANCHA
-            ========================= */}
-
-            <section className="tarjeta">
-
-              <h2 className="titulo">
-                🎾 Elegí la cancha
-              </h2>
-
               <div className="campo">
+
+                <label>
+                  Cancha
+                </label>
 
                 <select
                   className="select"
@@ -1589,8 +1443,7 @@ export default function Home() {
                       key={cancha.id}
                       value={cancha.id}
                     >
-                      {cancha.nombre ||
-                        `Cancha ${cancha.id}`}
+                      {nombreCancha(cancha.id)}
                     </option>
 
                   ))}
@@ -1599,54 +1452,42 @@ export default function Home() {
 
               </div>
 
-            </section>
+              <div className="campo">
 
-            {/* =========================
-                DURACIÓN
-            ========================= */}
+                <label>
+                  Duración (mínimo 1 hora)
+                </label>
 
-            <section className="tarjeta">
+                <div className="duraciones">
 
-              <h2 className="titulo">
-                ⏱️ ¿Cuánto tiempo vas a reservar?
-              </h2>
+                  {DURACIONES.map(opcion => (
 
-              <p className="descripcion">
-                El mínimo es de 1 hora.
-              </p>
+                    <button
+                      key={opcion.valor}
+                      className={
+                        `duracion ${
+                          Number(duracion) ===
+                          Number(opcion.valor)
+                            ? 'activo'
+                            : ''
+                        }`
+                      }
+                      onClick={() =>
+                        cambiarDuracion(
+                          opcion.valor
+                        )
+                      }
+                    >
+                      {opcion.texto}
+                    </button>
 
-              <div className="duraciones">
+                  ))}
 
-                {DURACIONES.map(opcion => (
-
-                  <button
-                    key={opcion.valor}
-                    className={
-                      `duracion ${
-                        Number(duracion) ===
-                        Number(opcion.valor)
-                          ? 'activo'
-                          : ''
-                      }`
-                    }
-                    onClick={() =>
-                      cambiarDuracion(
-                        opcion.valor
-                      )
-                    }
-                  >
-                    {opcion.texto}
-                  </button>
-
-                ))}
+                </div>
 
               </div>
 
             </section>
-
-            {/* =========================
-                HORARIOS
-            ========================= */}
 
             <section className="tarjeta">
 
@@ -1687,25 +1528,45 @@ export default function Home() {
 
                 <div className="horarios">
 
-                  {horariosDisponibles.map(hora => (
+                  {horariosDisponibles.map(hora => {
 
-                    <button
-                      key={hora}
-                      className={
-                        `horario ${
-                          horaInicio === hora
-                            ? 'activo'
-                            : ''
-                        }`
-                      }
-                      onClick={() =>
-                        setHoraInicio(hora)
-                      }
-                    >
-                      {hora}
-                    </button>
+                    const inicioSeleccion =
+                      horaInicio
+                        ? horaAMinutos(horaInicio)
+                        : null
 
-                  ))}
+                    const finSeleccion =
+                      horaInicio
+                        ? inicioSeleccion +
+                          Number(duracion) * 60
+                        : null
+
+                    const dentroDeLaSeleccion =
+                      horaInicio &&
+                      horaAMinutos(hora) >= inicioSeleccion &&
+                      horaAMinutos(hora) < finSeleccion
+
+                    return (
+
+                      <button
+                        key={hora}
+                        className={
+                          `horario ${
+                            dentroDeLaSeleccion
+                              ? 'activo'
+                              : ''
+                          }`
+                        }
+                        onClick={() =>
+                          setHoraInicio(hora)
+                        }
+                      >
+                        {hora}
+                      </button>
+
+                    )
+
+                  })}
 
                 </div>
 
@@ -1713,14 +1574,10 @@ export default function Home() {
 
             </section>
 
-            {/* =========================
-                DATOS CLIENTE
-            ========================= */}
-
             <section className="tarjeta">
 
               <h2 className="titulo">
-                👤 Tus datos
+                👤 Tus datos y pago
               </h2>
 
               <div className="campo">
@@ -1759,17 +1616,13 @@ export default function Home() {
 
               </div>
 
-            </section>
+              <div className="campo">
 
-            {/* =========================
-                PAGO
-            ========================= */}
+                <label>
+                  Forma de pago
+                </label>
 
-            <section className="tarjeta">
-
-              <h2 className="titulo">
-                💳 Forma de pago
-              </h2>
+              </div>
 
               <div className="pagos">
 
@@ -1825,10 +1678,6 @@ export default function Home() {
 
               </div>
 
-              {/* =========================
-                  RESUMEN
-              ========================= */}
-
               <div className="resumen">
 
                 <div className="resumenFila">
@@ -1850,8 +1699,9 @@ export default function Home() {
                   </span>
 
                   <strong>
-                    {canchaSeleccionada?.nombre ||
-                      '-'}
+                    {canchaId
+                      ? nombreCancha(canchaId)
+                      : '-'}
                   </strong>
 
                 </div>
@@ -1929,10 +1779,6 @@ export default function Home() {
 
               </div>
 
-              {/* =========================
-                  AVISO IMPORTANTE
-              ========================= */}
-
               <div className="aviso">
 
                 <strong>
@@ -1981,10 +1827,6 @@ export default function Home() {
 
       </div>
 
-      {/* =========================
-          WHATSAPP CONSULTAS
-      ========================= */}
-
       <button
         className="botonWhatsApp"
         onClick={consultasWhatsApp}
@@ -1992,10 +1834,6 @@ export default function Home() {
       >
         ☎️
       </button>
-
-      {/* =========================
-          COMPROBANTE
-      ========================= */}
 
       {comprobante && (
 
@@ -2164,4 +2002,5 @@ export default function Home() {
 
     </main>
   )
-              }
+}
+
