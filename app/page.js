@@ -6,10 +6,29 @@ import { supabase } from '../lib/supabase'
 const NOMBRE_CLUB = 'Quinta Padel'
 const NUMERO_WHATSAPP = '5491112345678'
 
+// =====================================================
+// MERCADO PAGO
+// =====================================================
+// Acá más adelante vamos a poner tu link de pago.
+// NO pongas Access Token ni ninguna clave acá.
+const LINK_MERCADO_PAGO =
+  'PEGAR_AQUI_TU_LINK_DE_MERCADO_PAGO'
+
+// =====================================================
+// PRECIOS
+// =====================================================
+
+// 1 hora y 30 minutos = $50.000
+const PRECIO_90_MINUTOS = 50000
+
+// La seña siempre será el 50%
+const PORCENTAJE_SENA = 0.50
+
 const HORA_APERTURA = 7 * 60
 const HORA_CIERRE = 26 * 60
 
 function fechaLocal() {
+
   const ahora = new Date()
 
   return `${ahora.getFullYear()}-${String(
@@ -20,7 +39,11 @@ function fechaLocal() {
 }
 
 function convertirMinutos(hora) {
-  const [h, m] = hora.slice(0, 5).split(':').map(Number)
+
+  const [h, m] =
+    hora.slice(0, 5)
+      .split(':')
+      .map(Number)
 
   let minutos = h * 60 + m
 
@@ -32,35 +55,49 @@ function convertirMinutos(hora) {
 }
 
 function minutosAHora(minutos) {
-  const h = Math.floor(minutos / 60) % 24
-  const m = minutos % 60
 
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  const h =
+    Math.floor(minutos / 60) % 24
+
+  const m =
+    minutos % 60
+
+  return `${String(h).padStart(2, '0')}:${String(
+    m
+  ).padStart(2, '0')}`
 }
 
 function sumarMinutos(hora, minutos) {
+
   return minutosAHora(
     convertirMinutos(hora) + minutos
   )
 }
 
 function formatearFecha(fecha) {
-  const [year, month, day] = fecha.split('-')
 
-  const fechaObj = new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day)
+  const [year, month, day] =
+    fecha.split('-')
+
+  const fechaObj =
+    new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day)
+    )
+
+  return fechaObj.toLocaleDateString(
+    'es-AR',
+    {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    }
   )
-
-  return fechaObj.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  })
 }
 
 function generarHorarios() {
+
   const horarios = []
 
   for (
@@ -68,48 +105,146 @@ function generarHorarios() {
     minutos <= HORA_CIERRE - 60;
     minutos += 30
   ) {
-    horarios.push(minutosAHora(minutos))
+
+    horarios.push(
+      minutosAHora(minutos)
+    )
   }
 
   return horarios
 }
 
-const HORARIOS = generarHorarios()
+const HORARIOS =
+  generarHorarios()
+
+// =====================================================
+// PRECIO
+// =====================================================
+
+// Calculamos proporcionalmente:
+// 90 minutos = $50.000
+function calcularPrecio(duracionMinutos) {
+
+  const precio =
+    (PRECIO_90_MINUTOS / 90) *
+    duracionMinutos
+
+  return Math.round(precio)
+}
+
+function formatearPesos(valor) {
+
+  return new Intl.NumberFormat(
+    'es-AR',
+    {
+      style: 'currency',
+      currency: 'ARS',
+      maximumFractionDigits: 0
+    }
+  ).format(valor)
+}
+
+function calcularPago(
+  duracionMinutos,
+  tipoPago
+) {
+
+  const total =
+    calcularPrecio(duracionMinutos)
+
+  if (tipoPago === 'completo') {
+
+    return {
+      total,
+      pagado: total,
+      saldo: 0
+    }
+
+  }
+
+  const sena =
+    Math.round(
+      total * PORCENTAJE_SENA
+    )
+
+  return {
+    total,
+    pagado: sena,
+    saldo: total - sena
+  }
+}
 
 export default function Home() {
 
-  const [canchas, setCanchas] = useState([])
-  const [reservas, setReservas] = useState([])
-  const [turnosFijos, setTurnosFijos] = useState([])
+  const [canchas, setCanchas] =
+    useState([])
 
-  const [cargando, setCargando] = useState(true)
-  const [errorCarga, setErrorCarga] = useState('')
+  const [reservas, setReservas] =
+    useState([])
 
-  const [fechaSeleccionada, setFechaSeleccionada] =
-    useState(fechaLocal())
+  const [turnosFijos, setTurnosFijos] =
+    useState([])
 
-  const [canchaSeleccionada, setCanchaSeleccionada] =
-    useState(null)
+  const [cargando, setCargando] =
+    useState(true)
 
-  const [horaSeleccionada, setHoraSeleccionada] =
-    useState(null)
-
-  const [duracion, setDuracion] = useState(60)
-
-  const [modalReserva, setModalReserva] =
-    useState(false)
-
-  const [nombreCliente, setNombreCliente] =
+  const [errorCarga, setErrorCarga] =
     useState('')
 
-  const [telefonoCliente, setTelefonoCliente] =
-    useState('')
+  const [
+    fechaSeleccionada,
+    setFechaSeleccionada
+  ] = useState(fechaLocal())
+
+  const [
+    canchaSeleccionada,
+    setCanchaSeleccionada
+  ] = useState(null)
+
+  const [
+    horaSeleccionada,
+    setHoraSeleccionada
+  ] = useState(null)
+
+  const [duracion, setDuracion] =
+    useState(90)
+
+  const [
+    modalReserva,
+    setModalReserva
+  ] = useState(false)
+
+  const [
+    nombreCliente,
+    setNombreCliente
+  ] = useState('')
+
+  const [
+    telefonoCliente,
+    setTelefonoCliente
+  ] = useState('')
+
+  const [
+    tipoPago,
+    setTipoPago
+  ] = useState('sena')
+
+  const [
+    reservaCreada,
+    setReservaCreada
+  ] = useState(null)
 
   const [guardando, setGuardando] =
     useState(false)
 
+  // =====================================================
+  // CARGAR DATOS
+  // =====================================================
+
   useEffect(() => {
+
     cargarDatos()
+
   }, [fechaSeleccionada])
 
   async function cargarDatos() {
@@ -133,43 +268,67 @@ export default function Home() {
         supabase
           .from('reservas')
           .select('*')
-          .eq('fecha', fechaSeleccionada),
+          .eq(
+            'fecha',
+            fechaSeleccionada
+          ),
 
         supabase
           .from('turnos_fijos')
           .select('*')
-          .eq('estado', 'activo')
+          .eq(
+            'estado',
+            'activo'
+          )
 
       ])
 
       if (errorCanchas) {
+
         throw new Error(
           `No se pudieron cargar las canchas: ${errorCanchas.message}`
         )
+
       }
 
       if (errorReservas) {
+
         throw new Error(
           `No se pudieron cargar las reservas: ${errorReservas.message}`
         )
+
       }
 
       if (errorFijos) {
+
         throw new Error(
           `No se pudieron cargar los turnos fijos: ${errorFijos.message}`
         )
+
       }
 
-      setCanchas(dataCanchas || [])
-      setReservas(dataReservas || [])
-      setTurnosFijos(dataFijos || [])
+      setCanchas(
+        dataCanchas || []
+      )
+
+      setReservas(
+        dataReservas || []
+      )
+
+      setTurnosFijos(
+        dataFijos || []
+      )
 
       if (
         !canchaSeleccionada &&
         dataCanchas &&
         dataCanchas.length > 0
       ) {
-        setCanchaSeleccionada(dataCanchas[0].id)
+
+        setCanchaSeleccionada(
+          dataCanchas[0].id
+        )
+
       }
 
     } catch (error) {
@@ -188,10 +347,20 @@ export default function Home() {
     }
   }
 
-  function hayReserva(canchaId, hora) {
+  // =====================================================
+  // RESERVAS
+  // =====================================================
 
-    const inicio = convertirMinutos(hora)
-    const fin = inicio + 30
+  function hayReserva(
+    canchaId,
+    hora
+  ) {
+
+    const inicio =
+      convertirMinutos(hora)
+
+    const fin =
+      inicio + 30
 
     return reservas.some((r) => {
 
@@ -199,15 +368,24 @@ export default function Home() {
         Number(r.cancha_id) !==
         Number(canchaId)
       ) {
+
         return false
+
       }
 
+      // Una reserva pendiente también
+      // bloquea temporalmente el horario.
       const inicioReserva =
-        convertirMinutos(r.hora_inicio)
+        convertirMinutos(
+          r.hora_inicio
+        )
 
-      const finReserva = r.hora_fin
-        ? convertirMinutos(r.hora_fin)
-        : inicioReserva + 90
+      const finReserva =
+        r.hora_fin
+          ? convertirMinutos(
+              r.hora_fin
+            )
+          : inicioReserva + 90
 
       return (
         inicio < finReserva &&
@@ -217,16 +395,24 @@ export default function Home() {
     })
   }
 
-  function hayTurnoFijo(canchaId, hora) {
+  function hayTurnoFijo(
+    canchaId,
+    hora
+  ) {
 
-    const fechaObj = new Date(
-      `${fechaSeleccionada}T12:00:00`
-    )
+    const fechaObj =
+      new Date(
+        `${fechaSeleccionada}T12:00:00`
+      )
 
-    const diaSemana = fechaObj.getDay()
+    const diaSemana =
+      fechaObj.getDay()
 
-    const inicio = convertirMinutos(hora)
-    const fin = inicio + 30
+    const inicio =
+      convertirMinutos(hora)
+
+    const fin =
+      inicio + 30
 
     return turnosFijos.some((t) => {
 
@@ -234,39 +420,60 @@ export default function Home() {
         Number(t.cancha_id) !==
         Number(canchaId)
       ) {
+
         return false
+
       }
 
       if (
-        fechaSeleccionada < t.fecha_desde
+        fechaSeleccionada <
+        t.fecha_desde
       ) {
+
         return false
+
       }
 
       if (
-        fechaSeleccionada > t.fecha_hasta
+        fechaSeleccionada >
+        t.fecha_hasta
       ) {
+
         return false
+
       }
 
       if (
-        !Array.isArray(t.dias_semana)
+        !Array.isArray(
+          t.dias_semana
+        )
       ) {
+
         return false
+
       }
 
       if (
-        !t.dias_semana.includes(diaSemana)
+        !t.dias_semana.includes(
+          diaSemana
+        )
       ) {
+
         return false
+
       }
 
       const inicioFijo =
-        convertirMinutos(t.hora_inicio)
+        convertirMinutos(
+          t.hora_inicio
+        )
 
-      const finFijo = t.hora_fin
-        ? convertirMinutos(t.hora_fin)
-        : inicioFijo + 60
+      const finFijo =
+        t.hora_fin
+          ? convertirMinutos(
+              t.hora_fin
+            )
+          : inicioFijo + 60
 
       return (
         inicio < finFijo &&
@@ -283,13 +490,20 @@ export default function Home() {
   ) {
 
     const inicio =
-      convertirMinutos(horaInicio)
+      convertirMinutos(
+        horaInicio
+      )
 
     const fin =
-      inicio + duracionMinutos
+      inicio +
+      duracionMinutos
 
-    if (fin > HORA_CIERRE) {
+    if (
+      fin > HORA_CIERRE
+    ) {
+
       return false
+
     }
 
     for (
@@ -299,7 +513,9 @@ export default function Home() {
     ) {
 
       const hora =
-        minutosAHora(minuto)
+        minutosAHora(
+          minuto
+        )
 
       if (
         hayReserva(
@@ -307,7 +523,9 @@ export default function Home() {
           hora
         )
       ) {
+
         return false
+
       }
 
       if (
@@ -316,7 +534,9 @@ export default function Home() {
           hora
         )
       ) {
+
         return false
+
       }
 
     }
@@ -328,50 +548,64 @@ export default function Home() {
     canchaId
   ) {
 
-    const hoy = fechaLocal()
+    const hoy =
+      fechaLocal()
 
-    return HORARIOS.filter((hora) => {
-
-      // No permitir fechas anteriores
-      if (fechaSeleccionada < hoy) {
-        return false
-      }
-
-      // Si es hoy, ocultar horarios que ya pasaron
-      if (fechaSeleccionada === hoy) {
-
-        const ahora = new Date()
-
-        const minutosActuales =
-          ahora.getHours() * 60 +
-          ahora.getMinutes()
-
-        const minutosHorario =
-          convertirMinutos(hora)
+    return HORARIOS.filter(
+      (hora) => {
 
         if (
-          minutosHorario <=
-          minutosActuales
+          fechaSeleccionada <
+          hoy
         ) {
+
           return false
+
         }
+
+        if (
+          fechaSeleccionada ===
+          hoy
+        ) {
+
+          const ahora =
+            new Date()
+
+          const minutosActuales =
+            ahora.getHours() * 60 +
+            ahora.getMinutes()
+
+          const minutosHorario =
+            convertirMinutos(hora)
+
+          if (
+            minutosHorario <=
+            minutosActuales
+          ) {
+
+            return false
+
+          }
+
+        }
+
+        return estaDisponible(
+          canchaId,
+          hora,
+          60
+        )
+
       }
-
-      // Debe existir como mínimo 1 hora libre
-      return estaDisponible(
-        canchaId,
-        hora,
-        60
-      )
-
-    })
+    )
   }
 
   const horariosDisponibles =
     useMemo(() => {
 
       if (!canchaSeleccionada) {
+
         return []
+
       }
 
       return obtenerHorariosDisponibles(
@@ -389,7 +623,9 @@ export default function Home() {
     useMemo(() => {
 
       if (!horaSeleccionada) {
+
         return []
+
       }
 
       const opciones = []
@@ -407,7 +643,11 @@ export default function Home() {
             minutos
           )
         ) {
-          opciones.push(minutos)
+
+          opciones.push(
+            minutos
+          )
+
         }
 
       }
@@ -424,15 +664,30 @@ export default function Home() {
   useEffect(() => {
 
     if (
-      duracionesDisponibles.length > 0 &&
+      duracionesDisponibles.length >
+      0 &&
       !duracionesDisponibles.includes(
         duracion
       )
     ) {
 
-      setDuracion(
-        duracionesDisponibles[0]
-      )
+      // Preferimos 90 minutos
+      // cuando esté disponible.
+      if (
+        duracionesDisponibles.includes(
+          90
+        )
+      ) {
+
+        setDuracion(90)
+
+      } else {
+
+        setDuracion(
+          duracionesDisponibles[0]
+        )
+
+      }
 
     }
 
@@ -441,34 +696,82 @@ export default function Home() {
     duracion
   ])
 
+  // =====================================================
+  // ABRIR RESERVA
+  // =====================================================
+
   function abrirReserva(hora) {
 
     setHoraSeleccionada(hora)
-    setDuracion(60)
+
+    if (
+      duracionesDisponibles.includes(
+        90
+      )
+    ) {
+
+      setDuracion(90)
+
+    } else {
+
+      setDuracion(60)
+
+    }
+
+    setTipoPago('sena')
+
     setModalReserva(true)
 
   }
 
-  async function reservarYContinuarAlPago() {
+  // =====================================================
+  // CREAR RESERVA PENDIENTE
+  // =====================================================
 
-    if (!nombreCliente.trim()) {
-      alert('Ingresá tu nombre.')
+  async function crearReserva() {
+
+    if (
+      !nombreCliente.trim()
+    ) {
+
+      alert(
+        'Ingresá tu nombre.'
+      )
+
       return
+
     }
 
-    if (!telefonoCliente.trim()) {
-      alert('Ingresá tu teléfono.')
+    if (
+      !telefonoCliente.trim()
+    ) {
+
+      alert(
+        'Ingresá tu teléfono.'
+      )
+
       return
+
     }
 
     if (!canchaSeleccionada) {
-      alert('Seleccioná una cancha.')
+
+      alert(
+        'Seleccioná una cancha.'
+      )
+
       return
+
     }
 
     if (!horaSeleccionada) {
-      alert('Seleccioná un horario.')
+
+      alert(
+        'Seleccioná un horario.'
+      )
+
       return
+
     }
 
     if (
@@ -484,10 +787,18 @@ export default function Home() {
       )
 
       setModalReserva(false)
+
       await cargarDatos()
 
       return
+
     }
+
+    const pago =
+      calcularPago(
+        duracion,
+        tipoPago
+      )
 
     setGuardando(true)
 
@@ -499,11 +810,12 @@ export default function Home() {
           duracion
         )
 
-      const { error } =
+      const { data, error } =
         await supabase
           .from('reservas')
           .insert([
             {
+
               cancha_id:
                 canchaSeleccionada,
 
@@ -523,36 +835,69 @@ export default function Home() {
                 telefonoCliente.trim(),
 
               estado:
-                'pendiente',
+                'pendiente_pago',
 
               pago_confirmado:
                 false,
 
               tipo:
-                'normal'
+                'normal',
+
+              precio_total:
+                pago.total,
+
+              monto_pagado:
+                pago.pagado,
+
+              saldo_pendiente:
+                pago.saldo,
+
+              tipo_pago:
+                tipoPago
+
             }
           ])
+          .select()
+          .single()
 
       if (error) {
+
         throw new Error(
           error.message
         )
+
       }
 
-      /*
-       * Mercado Pago se conecta
-       * en el siguiente paso.
-       */
-
-      alert(
-        'Reserva creada correctamente.'
-      )
+      setReservaCreada({
+        id: data?.id,
+        cancha: canchas.find(
+          (c) =>
+            Number(c.id) ===
+            Number(
+              canchaSeleccionada
+            )
+        )?.nombre ||
+          'Cancha',
+        fecha:
+          fechaSeleccionada,
+        hora:
+          horaSeleccionada,
+        horaFin,
+        duracion,
+        nombre:
+          nombreCliente.trim(),
+        telefono:
+          telefonoCliente.trim(),
+        tipoPago,
+        total:
+          pago.total,
+        pagado:
+          pago.pagado,
+        saldo:
+          pago.saldo
+      })
 
       setModalReserva(false)
-
-      setNombreCliente('')
-      setTelefonoCliente('')
-      setHoraSeleccionada(null)
 
       await cargarDatos()
 
@@ -570,6 +915,135 @@ export default function Home() {
       setGuardando(false)
 
     }
+
+  }
+
+  // =====================================================
+  // MERCADO PAGO
+  // =====================================================
+
+  function pagarMercadoPago() {
+
+    if (
+      LINK_MERCADO_PAGO ===
+      'PEGAR_AQUI_TU_LINK_DE_MERCADO_PAGO'
+    ) {
+
+      alert(
+        'Todavía falta configurar el link de Mercado Pago.\n\n' +
+        'La reserva ya quedó registrada como pendiente de pago.'
+      )
+
+      return
+    }
+
+    window.open(
+      LINK_MERCADO_PAGO,
+      '_blank'
+    )
+
+  }
+
+  // =====================================================
+  // WHATSAPP
+  // =====================================================
+
+  function enviarComprobanteWhatsApp() {
+
+    if (!reservaCreada) {
+      return
+    }
+
+    const cancha =
+      canchas.find(
+        (c) =>
+          Number(c.id) ===
+          Number(
+            canchaSeleccionada
+          )
+      )
+
+    let mensaje =
+      `Hola, hice una reserva en ${NOMBRE_CLUB}.`
+
+    mensaje +=
+      `\n\n🎾 Cancha: ${
+        cancha?.nombre ||
+        reservaCreada.cancha
+      }`
+
+    mensaje +=
+      `\n📅 Fecha: ${
+        reservaCreada.fecha
+      }`
+
+    mensaje +=
+      `\n🕐 Horario: ${
+        reservaCreada.hora
+      } a ${
+        reservaCreada.horaFin
+      }`
+
+    mensaje +=
+      `\n⏱️ Duración: ${
+        formatearDuracion(
+          reservaCreada.duracion
+        )
+      }`
+
+    mensaje +=
+      `\n👤 Nombre: ${
+        reservaCreada.nombre
+      }`
+
+    mensaje +=
+      `\n📱 WhatsApp: ${
+        reservaCreada.telefono
+      }`
+
+    mensaje +=
+      `\n\n💰 Total: ${
+        formatearPesos(
+          reservaCreada.total
+        )
+      }`
+
+    mensaje +=
+      `\n💳 Pago realizado: ${
+        formatearPesos(
+          reservaCreada.pagado
+        )
+      }`
+
+    mensaje +=
+      `\n💵 Saldo pendiente: ${
+        formatearPesos(
+          reservaCreada.saldo
+        )
+      }`
+
+    mensaje +=
+      `\n\n${
+        reservaCreada.tipoPago ===
+        'sena'
+          ? '🟡 Pagué la seña del 50%.'
+          : '🟢 Pagué el total.'
+      }`
+
+    mensaje +=
+      `\n\n📎 Adjunto el comprobante de Mercado Pago.`
+
+    const url =
+      `https://wa.me/${NUMERO_WHATSAPP}` +
+      `?text=${encodeURIComponent(
+        mensaje
+      )}`
+
+    window.open(
+      url,
+      '_blank'
+    )
+
   }
 
   function consultarHorario(hora) {
@@ -578,33 +1052,46 @@ export default function Home() {
       canchas.find(
         (c) =>
           Number(c.id) ===
-          Number(canchaSeleccionada)
+          Number(
+            canchaSeleccionada
+          )
       )
 
     let mensaje =
       `Hola, quería consultar por una reserva en ${NOMBRE_CLUB}.`
 
     if (cancha?.nombre) {
+
       mensaje +=
-        `\nCancha: ${cancha.nombre}`
+        `\nCancha: ${
+          cancha.nombre
+        }`
+
     }
 
     mensaje +=
-      `\nFecha: ${fechaSeleccionada}`
+      `\nFecha: ${
+        fechaSeleccionada
+      }`
 
     if (hora) {
+
       mensaje +=
         `\nHorario: ${hora}`
+
     }
 
     const url =
       `https://wa.me/${NUMERO_WHATSAPP}` +
-      `?text=${encodeURIComponent(mensaje)}`
+      `?text=${encodeURIComponent(
+        mensaje
+      )}`
 
     window.open(
       url,
       '_blank'
     )
+
   }
 
   function cambiarFecha(cantidad) {
@@ -615,7 +1102,8 @@ export default function Home() {
       )
 
     fecha.setDate(
-      fecha.getDate() + cantidad
+      fecha.getDate() +
+      cantidad
     )
 
     const year =
@@ -634,7 +1122,44 @@ export default function Home() {
     setFechaSeleccionada(
       `${year}-${month}-${day}`
     )
+
   }
+
+  function formatearDuracion(
+    minutos
+  ) {
+
+    const horas =
+      Math.floor(
+        minutos / 60
+      )
+
+    const resto =
+      minutos % 60
+
+    if (resto === 0) {
+
+      return `${horas} hora${
+        horas > 1
+          ? 's'
+          : ''
+      }`
+
+    }
+
+    return `${horas} h ${resto} min`
+
+  }
+
+  const pagoActual =
+    calcularPago(
+      duracion,
+      tipoPago
+    )
+
+  // =====================================================
+  // PANTALLA
+  // =====================================================
 
   return (
 
@@ -688,7 +1213,6 @@ export default function Home() {
         .logo {
           width: 76px;
           height: 76px;
-
           margin: auto;
           margin-bottom: 12px;
 
@@ -776,9 +1300,7 @@ export default function Home() {
 
         .fechaCentro strong {
           display: block;
-
           text-transform: capitalize;
-
           font-size: 16px;
         }
 
@@ -1016,6 +1538,8 @@ export default function Home() {
           justify-content: center;
 
           padding: 12px;
+
+          overflow-y: auto;
         }
 
         .modal {
@@ -1031,6 +1555,8 @@ export default function Home() {
           border-radius: 24px;
 
           padding: 22px;
+
+          margin-top: 20px;
         }
 
         .modal h2 {
@@ -1081,6 +1607,130 @@ export default function Home() {
           outline: none;
         }
 
+        .opcionesPago {
+          display: grid;
+
+          grid-template-columns:
+            1fr 1fr;
+
+          gap: 10px;
+
+          margin-top: 8px;
+        }
+
+        .opcionPago {
+          padding: 14px;
+
+          border:
+            1px solid #355649;
+
+          border-radius: 14px;
+
+          background: #07120d;
+
+          color: #b9c9c2;
+
+          cursor: pointer;
+
+          text-align: left;
+        }
+
+        .opcionPago.activa {
+          border-color: #d7ff45;
+
+          background:
+            rgba(215,255,69,.09);
+
+          color: white;
+        }
+
+        .opcionPago strong {
+          display: block;
+
+          font-size: 14px;
+
+          margin-bottom: 5px;
+        }
+
+        .opcionPago span {
+          display: block;
+
+          font-size: 12px;
+
+          color: #9fb2a9;
+        }
+
+        .resumenPago {
+          margin-top: 16px;
+
+          padding: 16px;
+
+          border-radius: 16px;
+
+          background:
+            rgba(255,255,255,.04);
+
+          border:
+            1px solid #29483a;
+        }
+
+        .filaPago {
+          display: flex;
+
+          justify-content:
+            space-between;
+
+          gap: 10px;
+
+          padding: 6px 0;
+
+          font-size: 13px;
+
+          color: #b7c8c0;
+        }
+
+        .filaPago.total {
+          margin-top: 6px;
+
+          padding-top: 12px;
+
+          border-top:
+            1px solid #29483a;
+
+          color: white;
+
+          font-weight: 900;
+
+          font-size: 16px;
+        }
+
+        .filaPago.saldo {
+          color: #d7ff45;
+
+          font-weight: 800;
+        }
+
+        .notaPago {
+          padding: 12px;
+
+          margin-top: 12px;
+
+          border-radius: 12px;
+
+          background:
+            rgba(215,255,69,.06);
+
+          border:
+            1px solid
+            rgba(215,255,69,.13);
+
+          color: #c4d3cc;
+
+          font-size: 11px;
+
+          line-height: 1.5;
+        }
+
         .botones {
           display: grid;
 
@@ -1109,7 +1759,7 @@ export default function Home() {
           cursor: pointer;
         }
 
-        .btnPagar {
+        .btnConfirmar {
           padding: 13px;
 
           border: 0;
@@ -1125,31 +1775,146 @@ export default function Home() {
           cursor: pointer;
         }
 
-        .btnPagar:disabled {
+        .btnConfirmar:disabled {
           opacity: .5;
 
           cursor: wait;
         }
 
-        .notaPago {
-          padding: 12px;
+        .pantallaExito {
+          text-align: center;
 
-          margin-top: 12px;
+          padding: 10px 0;
+        }
 
-          border-radius: 12px;
+        .iconoExito {
+          width: 70px;
+          height: 70px;
+
+          margin: 0 auto 14px;
+
+          border-radius: 50%;
+
+          display: flex;
+
+          align-items: center;
+
+          justify-content: center;
 
           background:
-            rgba(215,255,69,.06);
+            rgba(215,255,69,.12);
 
           border:
             1px solid
-            rgba(215,255,69,.13);
+            rgba(215,255,69,.25);
 
-          color: #c4d3cc;
+          font-size: 34px;
+        }
 
-          font-size: 11px;
+        .pantallaExito h2 {
+          margin-bottom: 8px;
+        }
+
+        .estadoPendiente {
+          margin: 14px 0;
+
+          padding: 13px;
+
+          border-radius: 13px;
+
+          background:
+            rgba(255,193,7,.08);
+
+          border:
+            1px solid
+            rgba(255,193,7,.2);
+
+          color: #ffe08a;
+
+          font-size: 12px;
 
           line-height: 1.5;
+        }
+
+        .resumenExito {
+          text-align: left;
+
+          padding: 15px;
+
+          margin-top: 15px;
+
+          border-radius: 15px;
+
+          background:
+            rgba(255,255,255,.04);
+
+          border:
+            1px solid #29483a;
+
+          line-height: 1.8;
+
+          font-size: 13px;
+        }
+
+        .btnMercadoPago {
+          width: 100%;
+
+          margin-top: 15px;
+
+          padding: 14px;
+
+          border: 0;
+
+          border-radius: 14px;
+
+          background: #009ee3;
+
+          color: white;
+
+          font-weight: 900;
+
+          cursor: pointer;
+        }
+
+        .btnWhatsApp {
+          width: 100%;
+
+          margin-top: 10px;
+
+          padding: 14px;
+
+          border: 0;
+
+          border-radius: 14px;
+
+          background: #25d366;
+
+          color: white;
+
+          font-weight: 900;
+
+          cursor: pointer;
+        }
+
+        .btnCerrar {
+          width: 100%;
+
+          margin-top: 10px;
+
+          padding: 13px;
+
+          border:
+            1px solid #3b574a;
+
+          border-radius: 13px;
+
+          background: transparent;
+
+          color: #c2d0ca;
+
+          font-weight: 800;
+
+          cursor: pointer;
         }
 
         .cargando {
@@ -1177,6 +1942,11 @@ export default function Home() {
           .btnReservar,
           .btnConsultar {
             flex: 1;
+          }
+
+          .opcionesPago {
+            grid-template-columns:
+              1fr;
           }
 
         }
@@ -1230,6 +2000,10 @@ export default function Home() {
           </div>
 
         )}
+
+        {/* =================================================
+            FECHA
+        ================================================= */}
 
         <section className="tarjeta">
 
@@ -1287,6 +2061,10 @@ export default function Home() {
 
         </section>
 
+        {/* =================================================
+            CANCHAS
+        ================================================= */}
+
         <section className="tarjeta">
 
           <div className="titulo">
@@ -1330,6 +2108,10 @@ export default function Home() {
           </div>
 
         </section>
+
+        {/* =================================================
+            HORARIOS
+        ================================================= */}
 
         <section className="tarjeta">
 
@@ -1411,7 +2193,7 @@ export default function Home() {
                               )
                             }
                           >
-                            💳 Reservar y pagar
+                            🎾 Reservar
                           </button>
 
                           <button
@@ -1453,6 +2235,10 @@ export default function Home() {
 
       </div>
 
+      {/* ===================================================
+          MODAL DE RESERVA
+      =================================================== */}
+
       {modalReserva && (
 
         <div
@@ -1464,7 +2250,9 @@ export default function Home() {
               e.target ===
               e.currentTarget
             ) {
+
               setModalReserva(false)
+
             }
 
           }}
@@ -1507,6 +2295,8 @@ export default function Home() {
 
             </div>
 
+            {/* DURACIÓN */}
+
             <div className="campo">
 
               <label>
@@ -1532,20 +2322,9 @@ export default function Home() {
                       value={minutos}
                     >
 
-                      {Math.floor(
-                        minutos / 60
+                      {formatearDuracion(
+                        minutos
                       )}
-
-                      {' '}
-
-                      hora
-                      {minutos >= 120
-                        ? 's'
-                        : ''}
-
-                      {minutos % 60 === 30
-                        ? ' y 30 minutos'
-                        : ''}
 
                     </option>
 
@@ -1555,6 +2334,8 @@ export default function Home() {
               </select>
 
             </div>
+
+            {/* NOMBRE */}
 
             <div className="campo">
 
@@ -1575,6 +2356,8 @@ export default function Home() {
 
             </div>
 
+            {/* TELEFONO */}
+
             <div className="campo">
 
               <label>
@@ -1594,21 +2377,144 @@ export default function Home() {
 
             </div>
 
+            {/* FORMA DE PAGO */}
+
+            <div className="campo">
+
+              <label>
+                ¿Cómo querés pagar?
+              </label>
+
+              <div className="opcionesPago">
+
+                <button
+                  type="button"
+                  className={
+                    `opcionPago ${
+                      tipoPago === 'sena'
+                        ? 'activa'
+                        : ''
+                    }`
+                  }
+                  onClick={() =>
+                    setTipoPago('sena')
+                  }
+                >
+
+                  <strong>
+                    🟡 Pagar seña
+                  </strong>
+
+                  <span>
+                    50% ahora
+                  </span>
+
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    `opcionPago ${
+                      tipoPago === 'completo'
+                        ? 'activa'
+                        : ''
+                    }`
+                  }
+                  onClick={() =>
+                    setTipoPago(
+                      'completo'
+                    )
+                  }
+                >
+
+                  <strong>
+                    🟢 Pagar completo
+                  </strong>
+
+                  <span>
+                    100% ahora
+                  </span>
+
+                </button>
+
+              </div>
+
+            </div>
+
+            {/* RESUMEN */}
+
+            <div className="resumenPago">
+
+              <div className="filaPago">
+
+                <span>
+                  Duración
+                </span>
+
+                <strong>
+                  {formatearDuracion(
+                    duracion
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="filaPago total">
+
+                <span>
+                  Total
+                </span>
+
+                <strong>
+                  {formatearPesos(
+                    pagoActual.total
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="filaPago">
+
+                <span>
+                  Pagás ahora
+                </span>
+
+                <strong>
+                  {formatearPesos(
+                    pagoActual.pagado
+                  )}
+                </strong>
+
+              </div>
+
+              <div className="filaPago saldo">
+
+                <span>
+                  Saldo pendiente
+                </span>
+
+                <strong>
+                  {formatearPesos(
+                    pagoActual.saldo
+                  )}
+                </strong>
+
+              </div>
+
+            </div>
+
             <div className="notaPago">
 
-              💳 Al tocar
-              <strong>
-                {' '}Reservar y pagar
-              </strong>
-              {' '}
-              continuaremos con el proceso
-              de pago.
+              💳 Después de crear la reserva
+              podrás realizar el pago por
+              Mercado Pago y enviar el
+              comprobante por WhatsApp.
 
               <br /><br />
 
-              El sistema verificará la
-              disponibilidad antes de confirmar
-              la reserva.
+              ⚠️ La reserva queda pendiente
+              hasta que el pago sea verificado
+              por el club.
 
             </div>
 
@@ -1624,17 +2530,174 @@ export default function Home() {
               </button>
 
               <button
-                className="btnPagar"
+                className="btnConfirmar"
                 disabled={guardando}
                 onClick={
-                  reservarYContinuarAlPago
+                  crearReserva
                 }
               >
 
                 {guardando
                   ? 'Procesando...'
-                  : '💳 Reservar y pagar'}
+                  : 'Continuar'}
 
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {/* ===================================================
+          RESERVA CREADA
+      =================================================== */}
+
+      {reservaCreada && (
+
+        <div className="modalFondo">
+
+          <div className="modal">
+
+            <div className="pantallaExito">
+
+              <div className="iconoExito">
+                ✓
+              </div>
+
+              <h2>
+                Reserva registrada
+              </h2>
+
+              <p
+                style={{
+                  color: '#9fb2a9',
+                  fontSize: '13px'
+                }}
+              >
+                Ahora realizá el pago y
+                enviá el comprobante.
+              </p>
+
+              <div className="estadoPendiente">
+
+                🟡 <strong>
+                  Pendiente de pago
+                </strong>
+
+                <br />
+
+                El turno se confirmará
+                cuando el club verifique
+                el pago.
+
+              </div>
+
+              <div className="resumenExito">
+
+                🎾 <strong>
+                  {reservaCreada.cancha}
+                </strong>
+
+                <br />
+
+                📅 {
+                  formatearFecha(
+                    reservaCreada.fecha
+                  )
+                }
+
+                <br />
+
+                🕐 {
+                  reservaCreada.hora
+                } - {
+                  reservaCreada.horaFin
+                }
+
+                <br />
+
+                ⏱️ {
+                  formatearDuracion(
+                    reservaCreada.duracion
+                  )
+                }
+
+                <br />
+
+                👤 {
+                  reservaCreada.nombre
+                }
+
+                <br /><br />
+
+                💰 Total:
+                {' '}
+                <strong>
+                  {formatearPesos(
+                    reservaCreada.total
+                  )}
+                </strong>
+
+                <br />
+
+                💳 Pagás:
+                {' '}
+                <strong>
+                  {formatearPesos(
+                    reservaCreada.pagado
+                  )}
+                </strong>
+
+                <br />
+
+                💵 Saldo:
+                {' '}
+                <strong>
+                  {formatearPesos(
+                    reservaCreada.saldo
+                  )}
+                </strong>
+
+              </div>
+
+              <button
+                className="btnMercadoPago"
+                onClick={
+                  pagarMercadoPago
+                }
+              >
+                💳 Pagar con Mercado Pago
+              </button>
+
+              <button
+                className="btnWhatsApp"
+                onClick={
+                  enviarComprobanteWhatsApp
+                }
+              >
+                📲 Enviar comprobante por WhatsApp
+              </button>
+
+              <button
+                className="btnCerrar"
+                onClick={() => {
+
+                  setReservaCreada(
+                    null
+                  )
+
+                  setNombreCliente('')
+                  setTelefonoCliente('')
+                  setHoraSeleccionada(
+                    null
+                  )
+
+                }}
+              >
+                Cerrar
               </button>
 
             </div>
@@ -1647,4 +2710,4 @@ export default function Home() {
 
     </main>
   )
-        }
+  }
