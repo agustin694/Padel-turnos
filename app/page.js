@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 export default function AdminAgenda() {
 
@@ -182,8 +182,6 @@ export default function AdminAgenda() {
         throw error
       }
 
-      // La sacamos inmediatamente
-      // de la agenda de pendientes.
       setReservas(
         reservas.filter(
           reserva =>
@@ -658,10 +656,6 @@ export default function AdminAgenda() {
 
       <div className="contenedor">
 
-        {/* =================================================
-            CABECERA
-        ================================================= */}
-
         <div className="cabecera">
 
           <div>
@@ -685,10 +679,6 @@ export default function AdminAgenda() {
 
         </div>
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
-
         {error && (
 
           <div className="error">
@@ -704,10 +694,6 @@ export default function AdminAgenda() {
           </div>
 
         )}
-
-        {/* =================================================
-            FECHA
-        ================================================= */}
 
         <section className="tarjeta">
 
@@ -759,10 +745,6 @@ export default function AdminAgenda() {
           />
 
         </section>
-
-        {/* =================================================
-            RESERVAS
-        ================================================= */}
 
         <section className="tarjeta">
 
@@ -968,4 +950,4 @@ export default function AdminAgenda() {
 
     </main>
   )
-}
+                      }
