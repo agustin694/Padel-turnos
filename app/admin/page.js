@@ -86,7 +86,9 @@ function labelDuracion(minutos) {
   const horas = Math.floor(minutos / 60)
   const extra = minutos % 60 === 30
 
-  return `${horas} hora${horas > 1 ? 's' : ''}${extra ? ' y 30 minutos' : ''}`
+  return `${horas} hora${horas > 1 ? 's' : ''}${
+    extra ? ' y 30 minutos' : ''
+  }`
 }
 
 export default function AdminPage() {
@@ -104,27 +106,28 @@ export default function AdminPage() {
 
   const [canchaId, setCanchaId] = useState('')
 
-  // Filtros de visualización para la agenda, turnos fijos y casuales confirmados
   const [canchaAgendaFiltro, setCanchaAgendaFiltro] = useState('todas')
   const [canchaFijosFiltro, setCanchaFijosFiltro] = useState('')
   const [diaFijosFiltro, setDiaFijosFiltro] = useState(1)
 
-  // Filtros para la sección de casuales confirmados (similar a fijos)
-  const [canchaCasualesConfirmadosFiltro, setCanchaCasualesConfirmadosFiltro] = useState('')
-  const [fechaCasualesConfirmadosFiltro, setFechaCasualesConfirmadosFiltro] = useState(hoyLocal())
-  const [mostrarCasualesConfirmados, setMostrarCasualesConfirmados] = useState(true)
+  const [canchaCasualesConfirmadosFiltro, setCanchaCasualesConfirmadosFiltro] =
+    useState('')
+
+  const [fechaCasualesConfirmadosFiltro, setFechaCasualesConfirmadosFiltro] =
+    useState(hoyLocal())
+
+  const [mostrarCasualesConfirmados, setMostrarCasualesConfirmados] =
+    useState(true)
 
   const [tipoTurno, setTipoTurno] = useState('casual')
 
   const [clienteNombre, setClienteNombre] = useState('')
   const [clienteTelefono, setClienteTelefono] = useState('')
 
-  // Campos turno casual
   const [fechaCasual, setFechaCasual] = useState(hoyLocal())
   const [horaCasual, setHoraCasual] = useState('')
   const [duracionCasual, setDuracionCasual] = useState(60)
 
-  // Campos turno fijo (sin vigencia)
   const [diasSeleccionados, setDiasSeleccionados] = useState([])
   const [horaFijo, setHoraFijo] = useState('18:00')
   const [duracionFijo, setDuracionFijo] = useState(60)
@@ -133,7 +136,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     cargarDatos()
-  }, [fechaAgenda])
+  }, [])
 
   function nombreCancha(canchaIdBuscado) {
     const index = canchas.findIndex(
@@ -152,6 +155,7 @@ export default function AdminPage() {
     setCargando(true)
 
     try {
+
       const [
         { data: dataCanchas, error: errorCanchas },
         { data: dataReservas, error: errorReservas },
@@ -163,10 +167,13 @@ export default function AdminPage() {
           .select('*')
           .order('id'),
 
+        // IMPORTANTE:
+        // Ahora cargamos todas las reservas para poder
+        // mostrar los confirmados de cualquier fecha.
         supabase
           .from('reservas')
           .select('*, canchas(nombre)')
-          .eq('fecha', fechaAgenda)
+          .order('fecha')
           .order('hora_inicio'),
 
         supabase
@@ -185,21 +192,26 @@ export default function AdminPage() {
       setReservas(dataReservas || [])
       setTurnosFijos(dataFijos || [])
 
-      if (!canchaId && dataCanchas && dataCanchas.length > 0) {
+      if (!canchaId && dataCanchas?.length > 0) {
         setCanchaId(dataCanchas[0].id)
       }
 
-      if (!canchaFijosFiltro && dataCanchas && dataCanchas.length > 0) {
+      if (!canchaFijosFiltro && dataCanchas?.length > 0) {
         setCanchaFijosFiltro(String(dataCanchas[0].id))
       }
 
-      if (!canchaCasualesConfirmadosFiltro && dataCanchas && dataCanchas.length > 0) {
+      if (!canchaCasualesConfirmadosFiltro && dataCanchas?.length > 0) {
         setCanchaCasualesConfirmadosFiltro(String(dataCanchas[0].id))
       }
 
     } catch (error) {
       console.error(error)
-      alert('No se pudieron cargar los datos:\n\n' + error.message)
+
+      alert(
+        'No se pudieron cargar los datos:\n\n' +
+        (error?.message || 'Error desconocido')
+      )
+
     } finally {
       setCargando(false)
     }
@@ -207,22 +219,33 @@ export default function AdminPage() {
 
   function cambiarDia(dia) {
     setDiasSeleccionados(prev => {
+
       if (prev.includes(dia)) {
         return prev.filter(d => d !== dia)
       }
+
       return [...prev, dia].sort()
     })
   }
 
   function cambiarDiaNavegacion(numeroDia) {
+
     const actual = new Date(`${fechaAgenda}T12:00:00`)
     const diaActual = actual.getDay()
+
     const diff = numeroDia - diaActual
+
     actual.setDate(actual.getDate() + diff)
-    setFechaAgenda(actual.toISOString().split('T')[0])
+
+    const y = actual.getFullYear()
+    const m = String(actual.getMonth() + 1).padStart(2, '0')
+    const d = String(actual.getDate()).padStart(2, '0')
+
+    setFechaAgenda(`${y}-${m}-${d}`)
   }
 
   function turnoFijoCoincideConFecha(turno, fecha) {
+
     const fechaObj = new Date(`${fecha}T12:00:00`)
     const dia = fechaObj.getDay()
 
@@ -233,74 +256,185 @@ export default function AdminPage() {
   }
 
   function horaFinTurno(turno) {
+
     const duracionTurno = turno.duracion_minutos || 60
-    const minutos = minutosDesdeHora(turno.hora_inicio) + duracionTurno
+
+    const minutos =
+      minutosDesdeHora(turno.hora_inicio) +
+      duracionTurno
+
     return horaDesdeMinutos(minutos)
   }
 
   function esFijoEnHora(canchaIdBuscado, hora, fecha) {
+
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return turnosFijos.some(t => {
-      if (Number(t.cancha_id) !== Number(canchaIdBuscado)) return false
-      if (!turnoFijoCoincideConFecha(t, fecha)) return false
-      const inicioFijo = minutosDesdeHora(t.hora_inicio)
-      const duracion = t.duracion_minutos || 60
-      const finFijo = inicioFijo + duracion
 
-      return inicioSlot < finFijo && finSlot > inicioFijo
+      if (
+        Number(t.cancha_id) !==
+        Number(canchaIdBuscado)
+      ) {
+        return false
+      }
+
+      if (!turnoFijoCoincideConFecha(t, fecha)) {
+        return false
+      }
+
+      const inicioFijo =
+        minutosDesdeHora(t.hora_inicio)
+
+      const duracion =
+        t.duracion_minutos || 60
+
+      const finFijo =
+        inicioFijo + duracion
+
+      return (
+        inicioSlot < finFijo &&
+        finSlot > inicioFijo
+      )
     })
   }
 
   function esCasualEnHora(canchaIdBuscado, hora, fecha) {
+
     const inicioSlot = minutosDesdeHora(hora)
     const finSlot = inicioSlot + 30
 
     return reservasNormales.some(r => {
-      if (Number(r.cancha_id) !== Number(canchaIdBuscado)) return false
-      if (r.fecha !== fecha) return false
-      const inicioReserva = minutosDesdeHora(r.hora_inicio)
-      const finReserva = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioReserva + 90
 
-      return inicioSlot < finReserva && finSlot > inicioReserva
+      if (
+        Number(r.cancha_id) !==
+        Number(canchaIdBuscado)
+      ) {
+        return false
+      }
+
+      if (r.fecha !== fecha) {
+        return false
+      }
+
+      const inicioReserva =
+        minutosDesdeHora(r.hora_inicio)
+
+      const finReserva =
+        r.hora_fin
+          ? minutosDesdeHora(r.hora_fin)
+          : inicioReserva + 90
+
+      return (
+        inicioSlot < finReserva &&
+        finSlot > inicioReserva
+      )
     })
   }
 
-  function haySolapamiento(canchaSel, fechaSel, horaInicioSel, duracionSel) {
-    const inicioNuevo = minutosDesdeHora(horaInicioSel)
-    const finNuevo = inicioNuevo + duracionSel
+  function haySolapamiento(
+    canchaSel,
+    fechaSel,
+    horaInicioSel,
+    duracionSel
+  ) {
 
-    const chocaCasual = reservasNormales.some(r => {
-      if (Number(r.cancha_id) !== Number(canchaSel)) return false
-      if (r.fecha !== fechaSel) return false
-      const inicioR = minutosDesdeHora(r.hora_inicio)
-      const finR = r.hora_fin ? minutosDesdeHora(r.hora_fin) : inicioR + 90
-      return inicioNuevo < finR && finNuevo > inicioR
-    })
+    const inicioNuevo =
+      minutosDesdeHora(horaInicioSel)
 
-    if (chocaCasual) return true
+    const finNuevo =
+      inicioNuevo + duracionSel
 
-    const chocaFijo = turnosFijos.some(t => {
-      if (Number(t.cancha_id) !== Number(canchaSel)) return false
-      if (!turnoFijoCoincideConFecha(t, fechaSel)) return false
-      const inicioF = minutosDesdeHora(t.hora_inicio)
-      const finF = inicioF + (t.duracion_minutos || 60)
-      return inicioNuevo < finF && finNuevo > inicioF
-    })
+    const chocaCasual =
+      reservasNormales.some(r => {
+
+        if (
+          Number(r.cancha_id) !==
+          Number(canchaSel)
+        ) {
+          return false
+        }
+
+        if (r.fecha !== fechaSel) {
+          return false
+        }
+
+        const inicioR =
+          minutosDesdeHora(r.hora_inicio)
+
+        const finR =
+          r.hora_fin
+            ? minutosDesdeHora(r.hora_fin)
+            : inicioR + 90
+
+        return (
+          inicioNuevo < finR &&
+          finNuevo > inicioR
+        )
+      })
+
+    if (chocaCasual) {
+      return true
+    }
+
+    const chocaFijo =
+      turnosFijos.some(t => {
+
+        if (
+          Number(t.cancha_id) !==
+          Number(canchaSel)
+        ) {
+          return false
+        }
+
+        if (
+          !turnoFijoCoincideConFecha(
+            t,
+            fechaSel
+          )
+        ) {
+          return false
+        }
+
+        const inicioF =
+          minutosDesdeHora(t.hora_inicio)
+
+        const finF =
+          inicioF +
+          (t.duracion_minutos || 60)
+
+        return (
+          inicioNuevo < finF &&
+          finNuevo > inicioF
+        )
+      })
 
     return chocaFijo
   }
 
-  function horariosDisponiblesParaCrear(fechaSel, duracionSel) {
-    if (!canchaId || !fechaSel) return []
+  function horariosDisponiblesParaCrear(
+    fechaSel,
+    duracionSel
+  ) {
+
+    if (!canchaId || !fechaSel) {
+      return []
+    }
 
     return HORARIOS.filter(hora => {
-      return !haySolapamiento(canchaId, fechaSel, hora, duracionSel)
+
+      return !haySolapamiento(
+        canchaId,
+        fechaSel,
+        hora,
+        duracionSel
+      )
     })
   }
 
   async function crearTurnoCasual(e) {
+
     e.preventDefault()
 
     if (!canchaId) {
@@ -323,35 +457,56 @@ export default function AdminPage() {
       return
     }
 
-    if (haySolapamiento(canchaId, fechaCasual, horaCasual, duracionCasual)) {
-      alert('⚠️ El horario seleccionado ya está ocupado. Elegí otro disponible.')
+    if (
+      haySolapamiento(
+        canchaId,
+        fechaCasual,
+        horaCasual,
+        duracionCasual
+      )
+    ) {
+      alert(
+        '⚠️ El horario seleccionado ya está ocupado. Elegí otro disponible.'
+      )
+
       return
     }
 
     setGuardando(true)
 
     try {
-      const horaFin = sumarMinutos(horaCasual, duracionCasual)
 
-      const { error } = await supabase
-        .from('reservas')
-        .insert([
-          {
-            cancha_id: canchaId,
-            fecha: fechaCasual,
-            hora_inicio: horaCasual,
-            hora_fin: horaFin,
-            cliente_nombre: clienteNombre.trim(),
-            cliente_telefono: clienteTelefono.trim() || null,
-            estado: 'confirmada',
-            pago_confirmado: false,
-            tipo: 'normal'
-          }
-        ])
+      const horaFin =
+        sumarMinutos(
+          horaCasual,
+          duracionCasual
+        )
+
+      const { error } =
+        await supabase
+          .from('reservas')
+          .insert([
+            {
+              cancha_id: canchaId,
+              fecha: fechaCasual,
+              hora_inicio: horaCasual,
+              hora_fin: horaFin,
+              cliente_nombre:
+                clienteNombre.trim(),
+              cliente_telefono:
+                clienteTelefono.trim() ||
+                null,
+              estado: 'confirmada',
+              pago_confirmado: false,
+              tipo: 'normal'
+            }
+          ])
 
       if (error) throw error
 
-      alert('✅ Turno casual creado correctamente.')
+      alert(
+        '✅ Turno casual creado correctamente.'
+      )
 
       setClienteNombre('')
       setClienteTelefono('')
@@ -360,14 +515,21 @@ export default function AdminPage() {
       await cargarDatos()
 
     } catch (error) {
+
       console.error(error)
-      alert('No se pudo crear el turno:\n\n' + error.message)
+
+      alert(
+        'No se pudo crear el turno:\n\n' +
+        error.message
+      )
+
     } finally {
       setGuardando(false)
     }
   }
 
   async function crearTurnoFijo(e) {
+
     e.preventDefault()
 
     if (!canchaId) {
@@ -381,32 +543,44 @@ export default function AdminPage() {
     }
 
     if (diasSeleccionados.length === 0) {
-      alert('Seleccioná al menos un día de la semana.')
+      alert(
+        'Seleccioná al menos un día de la semana.'
+      )
+
       return
     }
 
     setGuardando(true)
 
     try {
-      const { error } = await supabase
-        .from('turnos_fijos')
-        .insert([
-          {
-            cancha_id: canchaId,
-            cliente_nombre: clienteNombre.trim(),
-            cliente_telefono: clienteTelefono.trim() || null,
-            fecha_desde: hoyLocal(),
-            fecha_hasta: '2099-12-31',
-            dias_semana: diasSeleccionados,
-            hora_inicio: horaFijo,
-            duracion_minutos: duracionFijo,
-            estado: 'activo'
-          }
-        ])
+
+      const { error } =
+        await supabase
+          .from('turnos_fijos')
+          .insert([
+            {
+              cancha_id: canchaId,
+              cliente_nombre:
+                clienteNombre.trim(),
+              cliente_telefono:
+                clienteTelefono.trim() ||
+                null,
+              fecha_desde: hoyLocal(),
+              fecha_hasta: '2099-12-31',
+              dias_semana:
+                diasSeleccionados,
+              hora_inicio: horaFijo,
+              duracion_minutos:
+                duracionFijo,
+              estado: 'activo'
+            }
+          ])
 
       if (error) throw error
 
-      alert('✅ Turno fijo creado correctamente.')
+      alert(
+        '✅ Turno fijo creado correctamente.'
+      )
 
       setClienteNombre('')
       setClienteTelefono('')
@@ -415,76 +589,147 @@ export default function AdminPage() {
       await cargarDatos()
 
     } catch (error) {
+
       console.error(error)
-      alert('No se pudo crear el turno fijo:\n\n' + error.message)
+
+      alert(
+        'No se pudo crear el turno fijo:\n\n' +
+        error.message
+      )
+
     } finally {
       setGuardando(false)
     }
   }
 
   async function eliminarTurnoFijo(id) {
-    const confirmar = confirm('¿Querés eliminar este turno fijo completo?')
+
+    const confirmar =
+      confirm(
+        '¿Querés eliminar este turno fijo completo?'
+      )
+
     if (!confirmar) return
 
-    const { error } = await supabase
-      .from('turnos_fijos')
-      .delete()
-      .eq('id', id)
+    const { error } =
+      await supabase
+        .from('turnos_fijos')
+        .delete()
+        .eq('id', id)
 
     if (error) {
-      alert('No se pudo eliminar:\n\n' + error.message)
+
+      alert(
+        'No se pudo eliminar:\n\n' +
+        error.message
+      )
+
       return
     }
 
     alert('Turno fijo eliminado.')
-    cargarDatos()
+
+    await cargarDatos()
   }
 
   async function cancelarReserva(id) {
-    const confirmar = confirm('¿Seguro que querés cancelar esta reserva?')
+
+    const confirmar =
+      confirm(
+        '¿Seguro que querés liberar este turno?'
+      )
+
     if (!confirmar) return
 
-    const { error } = await supabase
-      .from('reservas')
-      .delete()
-      .eq('id', id)
+    const { error } =
+      await supabase
+        .from('reservas')
+        .delete()
+        .eq('id', id)
 
     if (error) {
-      alert('No se pudo cancelar:\n\n' + error.message)
+
+      alert(
+        'No se pudo liberar:\n\n' +
+        error.message
+      )
+
       return
     }
 
-    cargarDatos()
+    await cargarDatos()
   }
 
-  async function cambiarPago(id, estadoActual) {
-    const { error } = await supabase
-      .from('reservas')
-      .update({
-        pago_confirmado: !estadoActual
-      })
-      .eq('id', id)
+  async function cambiarPago(
+    id,
+    estadoActual
+  ) {
+
+    const nuevoEstado = !estadoActual
+
+    const { error } =
+      await supabase
+        .from('reservas')
+        .update({
+          pago_confirmado:
+            nuevoEstado
+        })
+        .eq('id', id)
 
     if (error) {
-      alert('No se pudo actualizar el pago:\n\n' + error.message)
+
+      alert(
+        'No se pudo actualizar el pago:\n\n' +
+        error.message
+      )
+
       return
     }
 
-    cargarDatos()
+    await cargarDatos()
   }
 
-  const reservasNormales = reservas.filter(
-    r => r.estado !== 'bloqueado'
-  )
+  const reservasNormales =
+    reservas.filter(
+      r => r.estado !== 'bloqueado'
+    )
 
-  const horariosDisponiblesCasual = useMemo(
-    () => horariosDisponiblesParaCrear(fechaCasual, duracionCasual),
-    [canchaId, fechaCasual, duracionCasual, reservas, turnosFijos]
-  )
+  const reservasPendientesPago =
+    reservasNormales.filter(
+      r =>
+        r.fecha === fechaAgenda &&
+        !r.pago_confirmado
+    )
+
+  const reservasCasualesPagadas =
+    reservasNormales.filter(
+      r =>
+        r.pago_confirmado &&
+        r.cancha_id &&
+        r.fecha
+    )
+
+  const horariosDisponiblesCasual =
+    useMemo(
+      () =>
+        horariosDisponiblesParaCrear(
+          fechaCasual,
+          duracionCasual
+        ),
+      [
+        canchaId,
+        fechaCasual,
+        duracionCasual,
+        reservas,
+        turnosFijos
+      ]
+    )
 
   return (
     <main>
+
       <style jsx global>{`
+
         * {
           box-sizing: border-box;
         }
@@ -680,8 +925,8 @@ export default function AdminPage() {
         }
 
         .reservaConfirmada {
-          background: #0f2619;
-          border-left: 4px solid #16a34a;
+          background: #211f0d;
+          border-left: 4px solid #eab308;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 8px;
@@ -777,115 +1022,262 @@ export default function AdminPage() {
           margin: 0 0 10px;
         }
 
+        .estadoPagado {
+          color: #22c55e;
+          font-weight: bold;
+          font-size: 12px;
+          margin-top: 6px;
+        }
+
         @media(max-width: 520px) {
+
           .fila {
             grid-template-columns: 1fr;
           }
+
           .contenedor {
             padding: 12px;
           }
+
           .dias {
             grid-template-columns: repeat(4, 1fr);
           }
+
         }
+
       `}</style>
 
       <div className="contenedor">
+
         <div className="tituloPrincipal">
-          <h1>🔒 Panel Admin: Quinta Padel</h1>
-          <p>{fechaAgenda}</p>
-          <button className="btnLogout" onClick={cerrarSesion}>
+
+          <h1>
+            🔒 Panel Admin: Quinta Padel
+          </h1>
+
+          <p>
+            {fechaAgenda}
+          </p>
+
+          <button
+            className="btnLogout"
+            onClick={cerrarSesion}
+          >
             Cerrar sesión
           </button>
+
         </div>
 
-        {/* NAVEGADOR RÁPIDO DE DÍAS (LUNES A DOMINGO) */}
+
+        {/* NAVEGACIÓN */}
+
         <section className="tarjeta">
-          <label style={{ marginBottom: '8px' }}>Navegación semanal rápida</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+
+          <label>
+            Navegación semanal rápida
+          </label>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(7, 1fr)',
+              gap: '4px'
+            }}
+          >
+
             {DIAS_SHORT.map(d => (
+
               <button
                 key={d.numero}
                 type="button"
-                onClick={() => cambiarDiaNavegacion(d.numero)}
+                onClick={() =>
+                  cambiarDiaNavegacion(
+                    d.numero
+                  )
+                }
                 style={{
-                  background: '#183126',
+                  background:
+                    '#183126',
                   color: 'white',
-                  border: '1px solid #355546',
+                  border:
+                    '1px solid #355546',
                   padding: '8px 2px',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '11px',
-                  fontWeight: 'bold',
-                  textAlign: 'center'
+                  fontWeight: 'bold'
                 }}
               >
                 {d.nombre}
               </button>
+
             ))}
+
           </div>
+
         </section>
 
-        {/* VISTA RÁPIDA DE COLORES SEPARADA POR CANCHA */}
+
+        {/* VISTA RÁPIDA */}
+
         <section className="tarjeta">
-          <h2>👁️ Vista rápida de horarios ({fechaAgenda})</h2>
-          
+
+          <h2>
+            👁️ Vista rápida de horarios
+            ({fechaAgenda})
+          </h2>
+
           {canchas.map(cancha => (
-            <div key={cancha.id} style={{ marginTop: '14px' }}>
-              <h3 style={{ fontSize: '14px', margin: '0 0 6px 0', color: '#d7ff45' }}>🎾 {nombreCancha(cancha.id)}</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
+
+            <div
+              key={cancha.id}
+              style={{
+                marginTop: '14px'
+              }}
+            >
+
+              <h3
+                style={{
+                  fontSize: '14px',
+                  margin:
+                    '0 0 6px 0',
+                  color: '#d7ff45'
+                }}
+              >
+                🎾 {nombreCancha(cancha.id)}
+              </h3>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'repeat(6, 1fr)',
+                  gap: '4px'
+                }}
+              >
+
                 {HORARIOS.map(h => {
-                  const fijo = esFijoEnHora(cancha.id, h, fechaAgenda)
-                  const casual = esCasualEnHora(cancha.id, h, fechaAgenda)
-                  const colorBg = fijo ? '#3b82f6' : casual ? '#8b5cf6' : '#22c55e'
+
+                  const fijo =
+                    esFijoEnHora(
+                      cancha.id,
+                      h,
+                      fechaAgenda
+                    )
+
+                  const casual =
+                    esCasualEnHora(
+                      cancha.id,
+                      h,
+                      fechaAgenda
+                    )
+
+                  const colorBg =
+                    fijo
+                      ? '#3b82f6'
+                      : casual
+                        ? '#8b5cf6'
+                        : '#22c55e'
+
                   return (
+
                     <div
                       key={h}
                       style={{
-                        background: colorBg,
-                        textAlign: 'center',
+                        background:
+                          colorBg,
+                        textAlign:
+                          'center',
                         fontSize: '10px',
-                        padding: '5px 2px',
-                        borderRadius: '4px',
+                        padding:
+                          '5px 2px',
+                        borderRadius:
+                          '4px',
                         color: '#fff',
-                        fontWeight: 'bold'
+                        fontWeight:
+                          'bold'
                       }}
                     >
                       {h}
                     </div>
+
                   )
+
                 })}
+
               </div>
+
             </div>
+
           ))}
 
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '15px', fontSize: '11px' }}>
-            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px', marginRight: '4px' }}></span> Fijo</span>
-            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#8b5cf6', borderRadius: '2px', marginRight: '4px' }}></span> Casual</span>
-            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#22c55e', borderRadius: '2px', marginRight: '4px' }}></span> Libre</span>
+          <div
+            style={{
+              display: 'flex',
+              gap: '15px',
+              justifyContent:
+                'center',
+              marginTop: '15px',
+              fontSize: '11px'
+            }}
+          >
+
+            <span>
+              🔵 Fijo
+            </span>
+
+            <span>
+              🟣 Casual
+            </span>
+
+            <span>
+              🟢 Libre
+            </span>
+
           </div>
+
         </section>
 
+
         {/* CREAR TURNO */}
+
         <section className="tarjeta">
-          <h2>➕ Crear turno</h2>
+
+          <h2>
+            ➕ Crear turno
+          </h2>
 
           <div className="tabsTipo">
+
             <button
               type="button"
-              className={`tabTipo ${tipoTurno === 'casual' ? 'activo' : ''}`}
-              onClick={() => setTipoTurno('casual')}
+              className={`tabTipo ${
+                tipoTurno === 'casual'
+                  ? 'activo'
+                  : ''
+              }`}
+              onClick={() =>
+                setTipoTurno('casual')
+              }
             >
               🟢 Turno casual
             </button>
 
             <button
               type="button"
-              className={`tabTipo ${tipoTurno === 'fijo' ? 'activo' : ''}`}
-              onClick={() => setTipoTurno('fijo')}
+              className={`tabTipo ${
+                tipoTurno === 'fijo'
+                  ? 'activo'
+                  : ''
+              }`}
+              onClick={() =>
+                setTipoTurno('fijo')
+              }
             >
               🔵 Turno fijo
             </button>
+
           </div>
 
           <form
@@ -895,435 +1287,1055 @@ export default function AdminPage() {
                 : crearTurnoFijo
             }
           >
+
             <div className="campo">
-              <label>Cancha</label>
+
+              <label>
+                Cancha
+              </label>
+
               <select
                 value={canchaId}
-                onChange={(e) => setCanchaId(e.target.value)}
+                onChange={e =>
+                  setCanchaId(
+                    e.target.value
+                  )
+                }
               >
-                <option value="">Seleccionar cancha</option>
+
+                <option value="">
+                  Seleccionar cancha
+                </option>
+
                 {canchas.map(c => (
-                  <option key={c.id} value={c.id}>
+
+                  <option
+                    key={c.id}
+                    value={c.id}
+                  >
                     {nombreCancha(c.id)}
                   </option>
+
                 ))}
+
               </select>
+
             </div>
+
 
             <div className="fila">
+
               <div className="campo">
-                <label>Cliente</label>
+
+                <label>
+                  Cliente
+                </label>
+
                 <input
                   value={clienteNombre}
-                  onChange={(e) => setClienteNombre(e.target.value)}
+                  onChange={e =>
+                    setClienteNombre(
+                      e.target.value
+                    )
+                  }
                   placeholder="Nombre"
                 />
+
               </div>
 
               <div className="campo">
-                <label>WhatsApp</label>
+
+                <label>
+                  WhatsApp
+                </label>
+
                 <input
                   value={clienteTelefono}
-                  onChange={(e) => setClienteTelefono(e.target.value)}
+                  onChange={e =>
+                    setClienteTelefono(
+                      e.target.value
+                    )
+                  }
                   placeholder="Teléfono"
                 />
+
               </div>
+
             </div>
 
+
             {tipoTurno === 'casual' ? (
+
               <>
+
                 <div className="fila">
+
                   <div className="campo">
-                    <label>Fecha</label>
+
+                    <label>
+                      Fecha
+                    </label>
+
                     <input
                       type="date"
                       value={fechaCasual}
-                      onChange={(e) => setFechaCasual(e.target.value)}
+                      onChange={e =>
+                        setFechaCasual(
+                          e.target.value
+                        )
+                      }
                     />
+
                   </div>
 
                   <div className="campo">
-                    <label>Hora de inicio (Disponibles)</label>
+
+                    <label>
+                      Hora de inicio
+                    </label>
+
                     <select
                       value={horaCasual}
-                      onChange={(e) => setHoraCasual(e.target.value)}
+                      onChange={e =>
+                        setHoraCasual(
+                          e.target.value
+                        )
+                      }
                     >
-                      <option value="">Elegir horario disponible</option>
-                      {horariosDisponiblesCasual.map(hora => (
-                        <option key={hora} value={hora}>
-                          {hora}
-                        </option>
-                      ))}
+
+                      <option value="">
+                        Elegir horario disponible
+                      </option>
+
+                      {horariosDisponiblesCasual.map(
+                        hora => (
+
+                          <option
+                            key={hora}
+                            value={hora}
+                          >
+                            {hora}
+                          </option>
+
+                        )
+                      )}
+
                     </select>
+
                   </div>
+
                 </div>
 
+
                 <div className="campo">
-                  <label>Duración</label>
+
+                  <label>
+                    Duración
+                  </label>
+
                   <select
                     value={duracionCasual}
-                    onChange={(e) => setDuracionCasual(Number(e.target.value))}
+                    onChange={e =>
+                      setDuracionCasual(
+                        Number(
+                          e.target.value
+                        )
+                      )
+                    }
                   >
-                    {DURACIONES.map(minutos => (
-                      <option key={minutos} value={minutos}>
-                        {labelDuracion(minutos)}
-                      </option>
-                    ))}
+
+                    {DURACIONES.map(
+                      minutos => (
+
+                        <option
+                          key={minutos}
+                          value={minutos}
+                        >
+                          {labelDuracion(
+                            minutos
+                          )}
+                        </option>
+
+                      )
+                    )}
+
                   </select>
+
                 </div>
+
               </>
+
             ) : (
+
               <>
+
                 <div className="campo">
-                  <label>Días de la semana</label>
+
+                  <label>
+                    Días de la semana
+                  </label>
+
                   <div className="dias">
-                    {DIAS_SHORT.map(dia => (
-                      <button
-                        type="button"
-                        key={dia.numero}
-                        className={`dia ${diasSeleccionados.includes(dia.numero) ? 'activo' : ''}`}
-                        onClick={() => cambiarDia(dia.numero)}
-                      >
-                        {diasSeleccionados.includes(dia.numero) ? '✓ ' : ''}
-                        {dia.nombre}
-                      </button>
-                    ))}
+
+                    {DIAS_SHORT.map(
+                      dia => (
+
+                        <button
+                          type="button"
+                          key={dia.numero}
+                          className={`dia ${
+                            diasSeleccionados.includes(
+                              dia.numero
+                            )
+                              ? 'activo'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            cambiarDia(
+                              dia.numero
+                            )
+                          }
+                        >
+
+                          {diasSeleccionados.includes(
+                            dia.numero
+                          )
+                            ? '✓ '
+                            : ''}
+
+                          {dia.nombre}
+
+                        </button>
+
+                      )
+                    )}
+
                   </div>
+
                 </div>
+
 
                 <div className="fila">
+
                   <div className="campo">
-                    <label>Hora de inicio</label>
+
+                    <label>
+                      Hora de inicio
+                    </label>
+
                     <select
                       value={horaFijo}
-                      onChange={(e) => setHoraFijo(e.target.value)}
+                      onChange={e =>
+                        setHoraFijo(
+                          e.target.value
+                        )
+                      }
                     >
-                      {HORARIOS.map(hora => (
-                        <option key={hora} value={hora}>
-                          {hora}
-                        </option>
-                      ))}
+
+                      {HORARIOS.map(
+                        hora => (
+
+                          <option
+                            key={hora}
+                            value={hora}
+                          >
+                            {hora}
+                          </option>
+
+                        )
+                      )}
+
                     </select>
+
                   </div>
 
                   <div className="campo">
-                    <label>Duración</label>
+
+                    <label>
+                      Duración
+                    </label>
+
                     <select
                       value={duracionFijo}
-                      onChange={(e) => setDuracionFijo(Number(e.target.value))}
+                      onChange={e =>
+                        setDuracionFijo(
+                          Number(
+                            e.target.value
+                          )
+                        )
+                      }
                     >
-                      {DURACIONES.map(minutos => (
-                        <option key={minutos} value={minutos}>
-                          {labelDuracion(minutos)}
-                        </option>
-                      ))}
+
+                      {DURACIONES.map(
+                        minutos => (
+
+                          <option
+                            key={minutos}
+                            value={minutos}
+                          >
+                            {labelDuracion(
+                              minutos
+                            )}
+                          </option>
+
+                        )
+                      )}
+
                     </select>
+
                   </div>
+
                 </div>
+
               </>
+
             )}
 
-            <button className="btnPrincipal" disabled={guardando}>
+
+            <button
+              className="btnPrincipal"
+              disabled={guardando}
+            >
+
               {guardando
                 ? 'Creando...'
                 : tipoTurno === 'casual'
                   ? '➕ Crear turno casual'
                   : '➕ Crear turno fijo'}
+
             </button>
+
           </form>
+
         </section>
 
-        {/* AGENDA (SOLO PENDIENTES DE PAGO) */}
+
+        {/* AGENDA */}
+
         <section className="tarjeta">
-          <h2>📅 Agenda (Pendientes de pago)</h2>
+
+          <h2>
+            📅 Agenda
+            (Pendientes de pago)
+          </h2>
 
           <div className="agendaHeader">
-            <button onClick={() => setFechaAgenda(sumarDias(fechaAgenda, -1))}>
+
+            <button
+              onClick={() =>
+                setFechaAgenda(
+                  sumarDias(
+                    fechaAgenda,
+                    -1
+                  )
+                )
+              }
+            >
               ‹
             </button>
-            <div className="fecha">{fechaAgenda}</div>
-            <button onClick={() => setFechaAgenda(sumarDias(fechaAgenda, 1))}>
+
+            <div className="fecha">
+              {fechaAgenda}
+            </div>
+
+            <button
+              onClick={() =>
+                setFechaAgenda(
+                  sumarDias(
+                    fechaAgenda,
+                    1
+                  )
+                )
+              }
+            >
               ›
             </button>
+
           </div>
 
-          <div className="campo" style={{ marginBottom: '15px' }}>
-            <label>Filtrar por Cancha en Agenda</label>
+
+          <div className="campo">
+
+            <label>
+              Filtrar por Cancha
+            </label>
+
             <select
-              value={canchaAgendaFiltro}
-              onChange={(e) => setCanchaAgendaFiltro(e.target.value)}
+              value={
+                canchaAgendaFiltro
+              }
+              onChange={e =>
+                setCanchaAgendaFiltro(
+                  e.target.value
+                )
+              }
             >
-              <option value="todas">Todas las canchas</option>
+
+              <option value="todas">
+                Todas las canchas
+              </option>
+
               {canchas.map(c => (
-                <option key={c.id} value={c.id}>
+
+                <option
+                  key={c.id}
+                  value={c.id}
+                >
                   {nombreCancha(c.id)}
                 </option>
+
               ))}
+
             </select>
+
           </div>
 
+
           {cargando ? (
-            <div className="vacio">Cargando...</div>
+
+            <div className="vacio">
+              Cargando...
+            </div>
+
           ) : (
+
             canchas
-              .filter(c => canchaAgendaFiltro === 'todas' || Number(canchaAgendaFiltro) === Number(c.id))
+              .filter(
+                c =>
+                  canchaAgendaFiltro ===
+                    'todas' ||
+                  Number(
+                    canchaAgendaFiltro
+                  ) === Number(c.id)
+              )
               .map(cancha => {
-                const reservasPendientes = reservasNormales.filter(
-                  r => Number(r.cancha_id) === Number(cancha.id) && !r.pago_confirmado
-                )
+
+                const pendientes =
+                  reservasPendientesPago.filter(
+                    r =>
+                      Number(
+                        r.cancha_id
+                      ) ===
+                      Number(cancha.id)
+                  )
 
                 return (
-                  <div className="agendaCancha" key={cancha.id}>
-                    <h3>🎾 {nombreCancha(cancha.id)}</h3>
 
-                    {reservasPendientes.map(reserva => (
-                      <div className="reserva" key={reserva.id}>
-                        <strong>
-                          🟢 {reserva.hora_inicio}
-                          {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
-                        </strong>
-                        <div className="info">
-                          Cliente: {reserva.cliente_nombre || 'Sin nombre'}
-                          {reserva.cliente_telefono ? ` · ${reserva.cliente_telefono}` : ''}
-                        </div>
-                        <div className="acciones">
-                          <button
-                            className="btnPago pendiente"
-                            onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
-                          >
-                            ⚡ Confirmar pago
-                          </button>
+                  <div
+                    className="agendaCancha"
+                    key={cancha.id}
+                  >
 
-                          <button
-                            className="btnEliminar"
-                            onClick={() => cancelarReserva(reserva.id)}
-                          >
-                            🗑️ Liberar turno
-                          </button>
-                        </div>
+                    <h3>
+                      🎾 {nombreCancha(
+                        cancha.id
+                      )}
+                    </h3>
+
+                    {pendientes.length ===
+                    0 ? (
+
+                      <div className="vacio">
+                        No hay turnos pendientes
+                        de pago en esta cancha
+                        para este día.
                       </div>
-                    ))}
 
-                    {reservasPendientes.length === 0 && (
-                      <div className="vacio">No hay turnos pendientes de pago en esta cancha para este día.</div>
+                    ) : (
+
+                      pendientes.map(
+                        reserva => (
+
+                          <div
+                            className="reserva"
+                            key={reserva.id}
+                          >
+
+                            <strong>
+                              🟢 {reserva.hora_inicio}
+                              {reserva.hora_fin
+                                ? ` - ${reserva.hora_fin}`
+                                : ''}
+                            </strong>
+
+                            <div className="info">
+
+                              👤 Cliente:{' '}
+                              {reserva.cliente_nombre ||
+                                'Sin nombre'}
+
+                              {reserva.cliente_telefono
+                                ? ` · 📞 ${reserva.cliente_telefono}`
+                                : ''}
+
+                            </div>
+
+                            <div className="acciones">
+
+                              <button
+                                className="btnPago pendiente"
+                                onClick={() =>
+                                  cambiarPago(
+                                    reserva.id,
+                                    reserva.pago_confirmado
+                                  )
+                                }
+                              >
+                                ⚡ Confirmar pago
+                              </button>
+
+                              <button
+                                className="btnEliminar"
+                                onClick={() =>
+                                  cancelarReserva(
+                                    reserva.id
+                                  )
+                                }
+                              >
+                                🗑️ Liberar turno
+                              </button>
+
+                            </div>
+
+                          </div>
+
+                        )
+                      )
+
                     )}
+
                   </div>
+
                 )
+
               })
+
           )}
+
         </section>
 
-        {/* TURNOS CASUALES CONFIRMADOS / PAGADOS */}
+
+        {/* CASUALES CONFIRMADOS */}
+
         <section className="tarjeta">
+
           <button
             className="toggle"
-            onClick={() => setMostrarCasualesConfirmados(!mostrarCasualesConfirmados)}
+            onClick={() =>
+              setMostrarCasualesConfirmados(
+                !mostrarCasualesConfirmados
+              )
+            }
           >
-            ✅ Turnos casuales confirmados / pagados {mostrarCasualesConfirmados ? '▲' : '▼'}
+
+            🟢 Turnos casuales
+            confirmados / pagados
+
+            {mostrarCasualesConfirmados
+              ? ' ▲'
+              : ' ▼'}
+
           </button>
 
+
           {mostrarCasualesConfirmados && (
+
             <>
-              {/* Selector de Cancha */}
-              <div className="campo" style={{ marginTop: '10px' }}>
-                <label>Seleccionar Cancha</label>
+
+              <div className="campo">
+
+                <label>
+                  Seleccionar Cancha
+                </label>
+
                 <select
-                  value={canchaCasualesConfirmadosFiltro}
-                  onChange={(e) => setCanchaCasualesConfirmadosFiltro(e.target.value)}
+                  value={
+                    canchaCasualesConfirmadosFiltro
+                  }
+                  onChange={e =>
+                    setCanchaCasualesConfirmadosFiltro(
+                      e.target.value
+                    )
+                  }
                 >
+
                   {canchas.map(c => (
-                    <option key={c.id} value={c.id}>
+
+                    <option
+                      key={c.id}
+                      value={c.id}
+                    >
                       {nombreCancha(c.id)}
                     </option>
+
                   ))}
+
                 </select>
+
               </div>
 
-              {/* Selector de Fecha */}
+
               <div className="campo">
-                <label>Fecha</label>
+
+                <label>
+                  Fecha
+                </label>
+
                 <input
                   type="date"
-                  value={fechaCasualesConfirmadosFiltro}
-                  onChange={(e) => setFechaCasualesConfirmadosFiltro(e.target.value)}
+                  value={
+                    fechaCasualesConfirmadosFiltro
+                  }
+                  onChange={e =>
+                    setFechaCasualesConfirmadosFiltro(
+                      e.target.value
+                    )
+                  }
                 />
+
               </div>
 
-              {/* Listado filtrado */}
-              <div style={{ marginTop: '15px' }}>
-                {(() => {
-                  const casualesPagadosFiltrados = reservasNormales.filter(r => {
-                    const coincideCancha = Number(r.cancha_id) === Number(canchaCasualesConfirmadosFiltro)
-                    const coincideFecha = r.fecha === fechaCasualesConfirmadosFiltro
-                    return coincideCancha && coincideFecha && r.pago_confirmado
-                  })
 
-                  return (
-                    <div className="grupoCancha">
-                      <h3>📅 {nombreCancha(canchaCasualesConfirmadosFiltro)} — {fechaCasualesConfirmadosFiltro} ({casualesPagadosFiltrados.length})</h3>
+              {(() => {
 
-                      {casualesPagadosFiltrados.length === 0 && (
-                        <div className="vacio">No hay turnos casuales pagados para esta fecha en esta cancha.</div>
+                const confirmados =
+                  reservasCasualesPagadas.filter(
+                    reserva =>
+                      Number(
+                        reserva.cancha_id
+                      ) ===
+                      Number(
+                        canchaCasualesConfirmadosFiltro
+                      ) &&
+                      reserva.fecha ===
+                        fechaCasualesConfirmadosFiltro
+                  )
+
+                return (
+
+                  <div
+                    className="grupoCancha"
+                    style={{
+                      marginTop: '15px'
+                    }}
+                  >
+
+                    <h3>
+
+                      📅{' '}
+                      {nombreCancha(
+                        canchaCasualesConfirmadosFiltro
                       )}
 
-                      {casualesPagadosFiltrados.map(reserva => (
-                        <div className="reservaConfirmada" key={reserva.id}>
-                          <strong>
-                            🟢 {reserva.hora_inicio}
-                            {reserva.hora_fin ? ` - ${reserva.hora_fin}` : ''}
-                          </strong>
-                          <div className="info" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                            👤 <strong>Cliente:</strong> {reserva.cliente_nombre || 'Sin nombre'}
-                            {reserva.cliente_telefono ? (
-                              <>
-                                <span>· 📞 {reserva.cliente_telefono}</span>
+                      {' — '}
+
+                      {fechaCasualesConfirmadosFiltro}
+
+                      {' ('}
+
+                      {confirmados.length}
+
+                      {')'}
+
+                    </h3>
+
+
+                    {confirmados.length ===
+                    0 ? (
+
+                      <div className="vacio">
+                        No hay turnos casuales
+                        pagados para esta fecha
+                        en esta cancha.
+                      </div>
+
+                    ) : (
+
+                      confirmados.map(
+                        reserva => (
+
+                          <div
+                            className="reservaConfirmada"
+                            key={reserva.id}
+                          >
+
+                            <strong>
+                              ⏰{' '}
+                              {reserva.hora_inicio}
+
+                              {reserva.hora_fin
+                                ? ` - ${reserva.hora_fin}`
+                                : ''}
+                            </strong>
+
+
+                            <div className="info">
+
+                              👤{' '}
+                              <strong>
+                                Cliente:
+                              </strong>{' '}
+
+                              {reserva.cliente_nombre ||
+                                'Sin nombre'}
+
+                            </div>
+
+
+                            <div className="info">
+
+                              📞{' '}
+                              {reserva.cliente_telefono ||
+                                'Sin teléfono'}
+
+                              {reserva.cliente_telefono && (
+
                                 <a
-                                  href={`https://wa.me/${reserva.cliente_telefono.replace(/\D/g, '')}`}
+                                  href={`https://wa.me/${reserva.cliente_telefono.replace(
+                                    /\D/g,
+                                    ''
+                                  )}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btnWsp"
-                                  title="Enviar mensaje por WhatsApp"
                                 >
                                   💬 WhatsApp
                                 </a>
-                              </>
-                            ) : (
-                              <span>· 📞 Sin teléfono</span>
-                            )}
-                          </div>
-                          <div className="info" style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                            ✅ Pagado y Confirmado
-                          </div>
-                          <div className="acciones">
-                            <button
-                              className="btnPago pagado"
-                              onClick={() => cambiarPago(reserva.id, reserva.pago_confirmado)}
-                            >
-                              🔄 Deshacer pago
-                            </button>
 
-                            <button
-                              className="btnEliminar"
-                              onClick={() => cancelarReserva(reserva.id)}
-                            >
-                              🗑️ Liberar turno
-                            </button>
+                              )}
+
+                            </div>
+
+
+                            <div className="estadoPagado">
+
+                              ✅ Pagado y confirmado
+
+                            </div>
+
+
+                            <div className="acciones">
+
+                              <button
+                                className="btnPago pagado"
+                                onClick={() =>
+                                  cambiarPago(
+                                    reserva.id,
+                                    reserva.pago_confirmado
+                                  )
+                                }
+                              >
+                                🔄 Deshacer pago
+                              </button>
+
+
+                              <button
+                                className="btnEliminar"
+                                onClick={() =>
+                                  cancelarReserva(
+                                    reserva.id
+                                  )
+                                }
+                              >
+                                🗑️ Liberar turno
+                              </button>
+
+                            </div>
+
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
+
+                        )
+                      )
+
+                    )}
+
+                  </div>
+
+                )
+
+              })()}
+
             </>
+
           )}
+
         </section>
 
-        {/* TURNOS FIJOS ACTIVOS (CON BOTÓN DE WHATSAPP) */}
+
+        {/* TURNOS FIJOS */}
+
         <section className="tarjeta">
+
           <button
             className="toggle"
-            onClick={() => setMostrarFijosActivos(!mostrarFijosActivos)}
+            onClick={() =>
+              setMostrarFijosActivos(
+                !mostrarFijosActivos
+              )
+            }
           >
-            🔵 Turnos fijos activos ({turnosFijos.length}) {mostrarFijosActivos ? '▲' : '▼'}
+
+            🔵 Turnos fijos activos
+            ({turnosFijos.length})
+
+            {mostrarFijosActivos
+              ? ' ▲'
+              : ' ▼'}
+
           </button>
 
+
           {mostrarFijosActivos && (
+
             <>
-              {/* Selector de Cancha para Turnos Fijos */}
-              <div className="campo" style={{ marginTop: '10px' }}>
-                <label>Seleccionar Cancha</label>
+
+              <div className="campo">
+
+                <label>
+                  Seleccionar Cancha
+                </label>
+
                 <select
                   value={canchaFijosFiltro}
-                  onChange={(e) => setCanchaFijosFiltro(e.target.value)}
+                  onChange={e =>
+                    setCanchaFijosFiltro(
+                      e.target.value
+                    )
+                  }
                 >
+
                   {canchas.map(c => (
-                    <option key={c.id} value={c.id}>
+
+                    <option
+                      key={c.id}
+                      value={c.id}
+                    >
                       {nombreCancha(c.id)}
                     </option>
+
                   ))}
+
                 </select>
+
               </div>
 
-              {/* Selector de Día de la Semana (Lunes a Domingo) */}
+
               <div className="campo">
-                <label>Día de la semana</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+
+                <label>
+                  Día de la semana
+                </label>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(7, 1fr)',
+                    gap: '4px'
+                  }}
+                >
+
                   {DIAS.map(d => (
+
                     <button
                       key={d.numero}
                       type="button"
-                      className={`dia ${diaFijosFiltro === d.numero ? 'activo' : ''}`}
-                      onClick={() => setDiaFijosFiltro(d.numero)}
-                      style={{ padding: '8px 2px', fontSize: '11px' }}
+                      className={`dia ${
+                        diaFijosFiltro ===
+                        d.numero
+                          ? 'activo'
+                          : ''
+                      }`}
+                      onClick={() =>
+                        setDiaFijosFiltro(
+                          d.numero
+                        )
+                      }
+                      style={{
+                        padding:
+                          '8px 2px',
+                        fontSize:
+                          '11px'
+                      }}
                     >
                       {d.nombre}
                     </button>
+
                   ))}
+
                 </div>
+
               </div>
 
-              {/* Listado de turnos fijos filtrados por la cancha y día seleccionados */}
-              <div style={{ marginTop: '15px' }}>
-                {(() => {
-                  const fijosFiltrados = turnosFijos.filter(t => {
-                    const coincideCancha = Number(t.cancha_id) === Number(canchaFijosFiltro)
-                    const coincideDia = Array.isArray(t.dias_semana) && t.dias_semana.includes(diaFijosFiltro)
-                    return coincideCancha && coincideDia
-                  })
 
-                  const diaNombreActual = DIAS.find(d => d.numero === diaFijosFiltro)?.nombre || ''
+              {(() => {
 
-                  return (
-                    <div className="grupoCancha">
-                      <h3>📅 {nombreCancha(canchaFijosFiltro)} — {diaNombreActual} ({fijosFiltrados.length})</h3>
+                const fijosFiltrados =
+                  turnosFijos.filter(
+                    t => {
 
-                      {fijosFiltrados.length === 0 && (
-                        <div className="vacio">No hay turnos fijos para este día en esta cancha.</div>
+                      const coincideCancha =
+                        Number(
+                          t.cancha_id
+                        ) ===
+                        Number(
+                          canchaFijosFiltro
+                        )
+
+                      const coincideDia =
+                        Array.isArray(
+                          t.dias_semana
+                        ) &&
+                        t.dias_semana.includes(
+                          diaFijosFiltro
+                        )
+
+                      return (
+                        coincideCancha &&
+                        coincideDia
+                      )
+                    }
+                  )
+
+                const diaNombreActual =
+                  DIAS.find(
+                    d =>
+                      d.numero ===
+                      diaFijosFiltro
+                  )?.nombre || ''
+
+                return (
+
+                  <div
+                    className="grupoCancha"
+                    style={{
+                      marginTop:
+                        '15px'
+                    }}
+                  >
+
+                    <h3>
+
+                      📅{' '}
+                      {nombreCancha(
+                        canchaFijosFiltro
                       )}
 
-                      {fijosFiltrados.map(fijo => (
-                        <div className="fijo" key={fijo.id}>
-                          <strong>
-                            ⏰ {fijo.hora_inicio} a {horaFinTurno(fijo)}
-                          </strong>
-                          <div className="info" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                            👤 <strong>Cliente:</strong> {fijo.cliente_nombre}
-                            {fijo.cliente_telefono ? (
-                              <>
-                                <span>· 📞 {fijo.cliente_telefono}</span>
+                      {' — '}
+
+                      {diaNombreActual}
+
+                      {' ('}
+
+                      {fijosFiltrados.length}
+
+                      {')'}
+
+                    </h3>
+
+
+                    {fijosFiltrados.length ===
+                    0 ? (
+
+                      <div className="vacio">
+                        No hay turnos fijos
+                        para este día en esta
+                        cancha.
+                      </div>
+
+                    ) : (
+
+                      fijosFiltrados.map(
+                        fijo => (
+
+                          <div
+                            className="fijo"
+                            key={fijo.id}
+                          >
+
+                            <strong>
+                              ⏰{' '}
+                              {fijo.hora_inicio}
+                              {' - '}
+                              {horaFinTurno(
+                                fijo
+                              )}
+                            </strong>
+
+
+                            <div className="info">
+
+                              👤{' '}
+                              <strong>
+                                Cliente:
+                              </strong>{' '}
+
+                              {fijo.cliente_nombre}
+
+                            </div>
+
+
+                            <div className="info">
+
+                              📞{' '}
+                              {fijo.cliente_telefono ||
+                                'Sin teléfono'}
+
+                              {fijo.cliente_telefono && (
+
                                 <a
-                                  href={`https://wa.me/${fijo.cliente_telefono.replace(/\D/g, '')}`}
+                                  href={`https://wa.me/${fijo.cliente_telefono.replace(
+                                    /\D/g,
+                                    ''
+                                  )}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btnWsp"
-                                  title="Enviar mensaje por WhatsApp"
                                 >
                                   💬 WhatsApp
                                 </a>
-                              </>
-                            ) : (
-                              <span>· 📞 Sin teléfono</span>
-                            )}
+
+                              )}
+
+                            </div>
+
+
+                            <div className="acciones">
+
+                              <button
+                                className="btnEliminar"
+                                onClick={() =>
+                                  eliminarTurnoFijo(
+                                    fijo.id
+                                  )
+                                }
+                              >
+                                🗑️ Eliminar turno fijo
+                              </button>
+
+                            </div>
+
                           </div>
-                          <div className="acciones">
-                            <button
-                              className="btnEliminar"
-                              onClick={() => eliminarTurnoFijo(fijo.id)}
-                            >
-                              🗑️ Eliminar turno fijo
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
+
+                        )
+                      )
+
+                    )}
+
+                  </div>
+
+                )
+
+              })()}
+
             </>
+
           )}
+
         </section>
+
       </div>
+
     </main>
   )
-}
+                  }
