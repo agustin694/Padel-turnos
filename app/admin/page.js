@@ -449,6 +449,8 @@ export default function AdminPage() {
   }
 
   async function cambiarPago(id, estadoActual) {
+    // Nota: Si en tu base de datos la columna se llama 'pagado' en lugar de 'pago_confirmado',
+    // cambia 'pago_confirmado' por 'pagado' en ambas líneas de abajo.
     const { error } = await supabase
       .from('reservas')
       .update({
