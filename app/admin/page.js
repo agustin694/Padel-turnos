@@ -145,6 +145,7 @@ export default function AdminPage() {
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
+  const [clientesSugeridos, setClientesSugeridos] = useState([])
 
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -291,6 +292,13 @@ export default function AdminPage() {
       setCanchas(dataCanchas || [])
       setReservas(dataReservas || [])
       setTurnosFijos(dataFijos || [])
+
+      const nombresUnicos = [...new Set([
+        ...(dataReservas || []).map(r => r.cliente_nombre).filter(Boolean),
+        ...(dataFijos || []).map(f => f.cliente_nombre).filter(Boolean)
+      ])].sort()
+      
+      setClientesSugeridos(nombresUnicos)
 
       if (
         !canchaId &&
@@ -2224,14 +2232,22 @@ export default function AdminPage() {
                 </label>
 
                 <input
+                  type="text"
+                  list="lista-clientes"
                   value={clienteNombre}
                   onChange={e =>
                     setClienteNombre(
                       e.target.value
                     )
                   }
-                  placeholder="Nombre"
+                  placeholder="Escribir o seleccionar nombre"
                 />
+
+                <datalist id="lista-clientes">
+                  {clientesSugeridos.map((nombre, index) => (
+                    <option key={index} value={nombre} />
+                  ))}
+                </datalist>
 
               </div>
 
