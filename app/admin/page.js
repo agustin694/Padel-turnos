@@ -152,7 +152,6 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] =
     useState(hoyLocal())
 
-  // Estado para saber cuál botón de la navegación semanal está seleccionado
   const [diaNavSeleccionado, setDiaNavSeleccionado] = useState(() => {
     const [y, m, d] = hoyLocal().split('-').map(Number)
     return new Date(y, m - 1, d, 12, 0, 0).getDay()
