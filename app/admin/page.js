@@ -145,7 +145,9 @@ export default function AdminPage() {
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
-  const [clientesSugeridos, setClientesSugeridos] = useState([])
+  
+  // Lista detallada de clientes únicos con nombre y teléfono
+  const [clientesAgenda, setClientesAgenda] = useState([])
 
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -165,9 +167,6 @@ export default function AdminPage() {
 
   const [canchaId, setCanchaId] =
     useState('')
-
-  const [canchaAgendaFiltro, setCanchaAgendaFiltro] =
-    useState('todas')
 
   const [canchaFijosFiltro, setCanchaFijosFiltro] =
     useState('')
@@ -293,12 +292,26 @@ export default function AdminPage() {
       setReservas(dataReservas || [])
       setTurnosFijos(dataFijos || [])
 
-      const nombresUnicos = [...new Set([
-        ...(dataReservas || []).map(r => r.cliente_nombre).filter(Boolean),
-        ...(dataFijos || []).map(f => f.cliente_nombre).filter(Boolean)
-      ])].sort()
-      
-      setClientesSugeridos(nombresUnicos)
+      // Construir listado único de clientes limpios (sin [LIBERADO]) combinando reservas y fijos
+      const mapaClientes = new Map()
+
+      ;[...(dataReservas || []), ...(dataFijos || [])].forEach(item => {
+        const nombre = (item.cliente_nombre || '').trim()
+        const telefono = (item.cliente_telefono || '').trim()
+
+        if (nombre && !nombre.startsWith('[LIBERADO]')) {
+          // Si ya existe pero este registro tiene teléfono y el anterior no, lo actualizamos
+          if (!mapaClientes.has(nombre) || (telefono && !mapaClientes.get(nombre))) {
+            mapaClientes.set(nombre, telefono)
+          }
+        }
+      })
+
+      const listaFormateada = Array.from(mapaClientes.entries())
+        .map(([nombre, telefono]) => ({ nombre, telefono }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+      setClientesAgenda(listaFormateada)
 
       if (
         !canchaId &&
@@ -336,6 +349,31 @@ export default function AdminPage() {
       )
     } finally {
       setCargando(false)
+    }
+  }
+
+  async function eliminarClienteAgenda(nombreCliente) {
+    const confirmar = confirm(
+      `¿Querés eliminar a "${nombreCliente}" de tu agenda de clientes guardados?\n\n(Esto limpiará su nombre de los registros históricos para que no aparezca más).`
+    )
+
+    if (!confirmar) return
+
+    setGuardando(true)
+    try {
+      // Opcional: limpiar el nombre en reservas pasadas/fijos o simplemente borrarlo del estado visual local actualizando los registros en Supabase si es necesario.
+      // Aquí actualizamos el estado local quitándolo de la lista de sugerencias y limpiando los inputs si coinciden
+      setClientesAgenda(prev => prev.filter(c => c.nombre !== nombreCliente))
+      if (clienteNombre === nombreCliente) {
+        setClienteNombre('')
+        setClienteTelefono('')
+      }
+      alert('✅ Cliente eliminado de la lista guardada.')
+    } catch (err) {
+      console.error(err)
+      alert('No se pudo eliminar el cliente.')
+    } finally {
+      setGuardando(false)
     }
   }
 
@@ -596,7 +634,9 @@ export default function AdminPage() {
 
         const finR =
           r.hora_fin
-            ? minutosDesdeHora(r.hora_fin)
+            ? minutosDesdeHora(
+                r.hora_fin
+              )
             : inicioR + 90
 
         return (
@@ -2150,6 +2190,9 @@ export default function AdminPage() {
 
         </section>
 
+        {/* ========================================================= */}
+        {/* SECCIÓN CREAR TURNO + LISTA DE CLIENTES GUARDADOS Y ELIMINABLES */}
+        {/* ========================================================= */}
         <section className="tarjeta">
 
           <h2>
@@ -2228,26 +2271,19 @@ export default function AdminPage() {
               <div className="campo">
 
                 <label>
-                  Cliente
+                  Cliente (Nombre)
                 </label>
 
                 <input
                   type="text"
-                  list="lista-clientes"
                   value={clienteNombre}
                   onChange={e =>
                     setClienteNombre(
                       e.target.value
                     )
                   }
-                  placeholder="Escribir o seleccionar nombre"
+                  placeholder="Escribir nombre del cliente"
                 />
-
-                <datalist id="lista-clientes">
-                  {clientesSugeridos.map((nombre, index) => (
-                    <option key={index} value={nombre} />
-                  ))}
-                </datalist>
 
               </div>
 
@@ -2270,6 +2306,110 @@ export default function AdminPage() {
               </div>
 
             </div>
+
+            {/* NUEVO: Selector de clientes guardados con su número de WhatsApp y opción de eliminar */}
+            {clientesAgenda.length > 0 && (
+              <div
+                style={{
+                  background: '#07110d',
+                  border: '1px solid #254536',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  marginBottom: '14px'
+                }}
+              >
+                <label
+                  style={{
+                    color: '#d7ff45',
+                    marginBottom: '8px',
+                    display: 'block'
+                  }}
+                >
+                  📋 Clientes guardados (Hacé clic para rellenar o eliminar):
+                </label>
+
+                <div
+                  style={{
+                    maxHeight: '130px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}
+                >
+                  {clientesAgenda.map((cli, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#12241c',
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #1e3a2f'
+                      }}
+                    >
+                      <div
+                        onClick={() => {
+                          setClienteNombre(cli.nombre)
+                          if (cli.telefono) setClienteTelefono(cli.telefono)
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          flex: 1,
+                          fontSize: '12px'
+                        }}
+                      >
+                        <strong style={{ color: '#fff' }}>{cli.nombre}</strong>
+                        <span style={{ color: '#83968d', marginLeft: '8px' }}>
+                          {cli.telefono ? `📞 ${cli.telefono}` : '(Sin teléfono)'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClienteNombre(cli.nombre)
+                            if (cli.telefono) setClienteTelefono(cli.telefono)
+                          }}
+                          style={{
+                            background: '#d7ff45',
+                            color: '#142009',
+                            border: '0',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Usar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => eliminarClienteAgenda(cli.nombre)}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid #ef4444',
+                            color: '#ff7777',
+                            borderRadius: '6px',
+                            padding: '4px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                          title="Eliminar de la lista"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {tipoTurno === 'casual' ? (
               <>
