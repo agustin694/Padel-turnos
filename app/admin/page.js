@@ -49,9 +49,9 @@ function hoyLocal() {
 
 function formatearFechaConDia(fechaStr) {
   if (!fechaStr) return ''
-  const d = new Date(`${fechaStr}T12:00:00`)
-  const diaSemana = DIAS[d.getDay()].nombre
   const [anio, mes, dia] = fechaStr.split('-')
+  const d = new Date(anio, Number(mes) - 1, Number(dia), 12, 0, 0)
+  const diaSemana = DIAS[d.getDay()].nombre
   return `${diaSemana} ${mes}-${dia}`
 }
 
@@ -119,20 +119,14 @@ function sumarMinutos(hora, minutos) {
 }
 
 function sumarDias(fecha, dias) {
-  const d =
-    new Date(`${fecha}T12:00:00`)
+  const [y, m, d] = fecha.split('-').map(Number)
+  const fechaObj = new Date(y, m - 1, d + dias, 12, 0, 0)
 
-  d.setDate(d.getDate() + dias)
+  const anio = fechaObj.getFullYear()
+  const mes = String(fechaObj.getMonth() + 1).padStart(2, '0')
+  const dia = String(fechaObj.getDate()).padStart(2, '0')
 
-  const y = d.getFullYear()
-
-  const m =
-    String(d.getMonth() + 1).padStart(2, '0')
-
-  const day =
-    String(d.getDate()).padStart(2, '0')
-
-  return `${y}-${m}-${day}`
+  return `${anio}-${mes}-${dia}`
 }
 
 function labelDuracion(minutos) {
@@ -368,8 +362,8 @@ export default function AdminPage() {
   }
 
   function cambiarDiaNavegacion(numeroDia) {
-    const actual =
-      new Date(`${fechaAgenda}T12:00:00`)
+    const [y, m, d] = fechaAgenda.split('-').map(Number)
+    const actual = new Date(y, m - 1, d, 12, 0, 0)
 
     const diaActual =
       actual.getDay()
@@ -394,8 +388,8 @@ export default function AdminPage() {
     turno,
     fecha
   ) {
-    const fechaObj =
-      new Date(`${fecha}T12:00:00`)
+    const [y, m, d] = fecha.split('-').map(Number)
+    const fechaObj = new Date(y, m - 1, d, 12, 0, 0)
 
     const dia =
       fechaObj.getDay()
@@ -715,16 +709,13 @@ export default function AdminPage() {
           duracionCasual
         )
 
-      const [anio, mes, dia] = fechaCasual.split('-')
-      const fechaLocalCorrecta = `${anio}-${mes}-${dia}`
-
       const { error } =
         await supabase
           .from('reservas')
           .insert([
             {
               cancha_id: canchaId,
-              fecha: fechaLocalCorrecta,
+              fecha: fechaCasual,
               hora_inicio: horaCasual,
               hora_fin: horaFin,
               cliente_nombre:
@@ -855,10 +846,8 @@ export default function AdminPage() {
           return false
         }
 
-        const fecha =
-          new Date(
-            `${r.fecha}T12:00:00`
-          )
+        const [y, m, d] = r.fecha.split('-').map(Number)
+        const fecha = new Date(y, m - 1, d, 12, 0, 0)
 
         const dia =
           fecha.getDay()
@@ -961,10 +950,8 @@ export default function AdminPage() {
 
     if (!confirmar) return
 
-    const fecha =
-      new Date(
-        `${reserva.fecha}T12:00:00`
-      )
+    const [y, m, d] = reserva.fecha.split('-').map(Number)
+    const fecha = new Date(y, m - 1, d, 12, 0, 0)
 
     const dia =
       fecha.getDay()
@@ -2748,10 +2735,8 @@ export default function AdminPage() {
                         return false
                       }
 
-                      const fecha =
-                        new Date(
-                          `${reserva.fecha}T12:00:00`
-                        )
+                      const [y, m, d] = reserva.fecha.split('-').map(Number)
+                      const fecha = new Date(y, m - 1, d, 12, 0, 0)
 
                       return (
                         fecha.getDay() ===
