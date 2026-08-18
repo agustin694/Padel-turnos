@@ -192,7 +192,6 @@ export default function AdminPage() {
     setMostrarCasualesConfirmados
   ] = useState(true)
 
-  // NUEVO: abrir/cerrar la sección de pendientes
   const [
     mostrarPendientesPago,
     setMostrarPendientesPago
@@ -275,8 +274,6 @@ export default function AdminPage() {
           .select('*')
           .order('id'),
 
-        // MODIFICADO:
-        // Ahora trae TODAS las reservas, no solamente las de fechaAgenda.
         supabase
           .from('reservas')
           .select('*, canchas(nombre)')
@@ -954,7 +951,7 @@ export default function AdminPage() {
     const confirmar =
       confirm(
         `¿Querés convertir el turno de ${reserva.cliente_nombre || 'este cliente'} en turno fijo?\n\n` +
-        `Cancha: ${nombreCancha(reserva.cancha_id)} (${nombreCancha(reserva.cancha_id).toLowerCase()})\n` +
+        `Cancha: ${nombreCancha(reserva.cancha_id)}\n` +
         `Horario: ${formatearHora(reserva.hora_inicio)} a ${formatearHora(reserva.hora_fin || '')}\n\n` +
         `Se mantendrá el mismo día de la semana y horario.`
       )
@@ -1190,7 +1187,7 @@ export default function AdminPage() {
     const confirmar = confirm(
       `¿Querés liberar este turno fijo solamente para el día ${fechaAgendaActual}?\n\n` +
       `Cliente: ${fijo.cliente_nombre}\n` +
-      `Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFinTurno(fijo))} (${nombreCancha(fijo.cancha_id).toLowerCase()})\n\n` +
+      `Horario: ${formatearHora(fijo.hora_inicio)} a ${formatearHora(horaFinTurno(fijo))}\n\n` +
       `El turno fijo seguirá activo para las próximas semanas, pero este día quedará libre.`
     )
 
@@ -1221,7 +1218,7 @@ export default function AdminPage() {
       if (error) throw error
 
       const nomCancha =
-        `${nombreCancha(fijo.cancha_id)} (${nombreCancha(fijo.cancha_id).toLowerCase()})`
+        `${nombreCancha(fijo.cancha_id)}`
 
       const fechaFormateada =
         `${fechaAgendaActual} (${formatearFechaConDia(fechaAgendaActual)})`
@@ -1288,7 +1285,7 @@ export default function AdminPage() {
 
     if (reservaAEliminar) {
       const nomCancha =
-        `${nombreCancha(reservaAEliminar.cancha_id)} (${nombreCancha(reservaAEliminar.cancha_id).toLowerCase()})`
+        `${nombreCancha(reservaAEliminar.cancha_id)}`
 
       const horaFin =
         reservaAEliminar.hora_fin ||
@@ -2073,7 +2070,7 @@ export default function AdminPage() {
                   color: '#d7ff45'
                 }}
               >
-                🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()})
+                🎾 {nombreCancha(cancha.id)}
               </h3>
 
               <div
@@ -2211,7 +2208,7 @@ export default function AdminPage() {
                       setCanchaId(c.id)
                     }
                   >
-                    {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                    {nombreCancha(c.id)}
                   </button>
                 ))}
               </div>
@@ -2477,11 +2474,6 @@ export default function AdminPage() {
 
         </section>
 
-        {/* =========================================================
-            AGENDA - AHORA MUESTRA TODAS LAS RESERVAS PENDIENTES
-            SIN DEPENDER DE fechaAgenda
-        ========================================================== */}
-
         <section className="tarjeta">
 
           <button
@@ -2686,7 +2678,7 @@ export default function AdminPage() {
                         )
                       }
                     >
-                      {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                      {nombreCancha(c.id)}
                     </button>
                   ))}
 
@@ -2789,7 +2781,7 @@ export default function AdminPage() {
                       📅{' '}
                       {nombreCancha(
                         canchaCasualesConfirmadosFiltro
-                      )} ({nombreCancha(canchaCasualesConfirmadosFiltro).toLowerCase()})
+                      )}
 
                       {' — '}
 
@@ -2826,13 +2818,11 @@ export default function AdminPage() {
                                 )}`
                               : ''}
 
-                            {' ('}
+                            {' · '}
 
-                            {nombreCancha(
-                              reserva.cancha_id
-                            ).toLowerCase()}
-
-                            {')'}
+                            📅 {formatearFechaConDia(
+                              reserva.fecha
+                            )}
                           </strong>
 
                           <div
@@ -2998,7 +2988,7 @@ export default function AdminPage() {
                         )
                       }
                     >
-                      {nombreCancha(c.id)} ({nombreCancha(c.id).toLowerCase()})
+                      {nombreCancha(c.id)}
                     </button>
                   ))}
 
@@ -3099,7 +3089,7 @@ export default function AdminPage() {
                         📅{' '}
                         {nombreCancha(
                           canchaFijosFiltro
-                        )} ({nombreCancha(canchaFijosFiltro).toLowerCase()})
+                        )}
 
                         {' — '}
 
@@ -3412,7 +3402,7 @@ export default function AdminPage() {
                               '#d7ff45'
                           }}
                         >
-                          🎾 {nombreCancha(cancha.id)} ({nombreCancha(cancha.id).toLowerCase()}) — {casualesDia.length} turno{casualesDia.length !== 1 ? 's' : ''} casual{casualesDia.length !== 1 ? 'es' : ''}
+                          🎾 {nombreCancha(cancha.id)} — {casualesDia.length} turno{casualesDia.length !== 1 ? 's' : ''} casual{casualesDia.length !== 1 ? 'es' : ''}
                         </h4>
 
                         {casualesDia.length === 0 && (
@@ -3448,7 +3438,7 @@ export default function AdminPage() {
                                   'bold'
                               }}
                             >
-                              🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''}
+                              🟣 Casual: {formatearHora(r.hora_inicio)} {r.hora_fin ? `- ${formatearHora(r.hora_fin)}` : ''} · 📅 {formatearFechaConDia(r.fecha)}
                             </div>
 
                             <div
@@ -3477,7 +3467,8 @@ export default function AdminPage() {
                                   'center',
                                 flexWrap:
                                   'wrap',
-                                gap: '6px',
+                                gap:
+                                  '6px',
                                 marginTop:
                                   '8px'
                               }}
@@ -3556,4 +3547,4 @@ export default function AdminPage() {
       </div>
     </main>
   )
-}
+             }
