@@ -715,13 +715,16 @@ export default function AdminPage() {
           duracionCasual
         )
 
+      const [anio, mes, dia] = fechaCasual.split('-')
+      const fechaLocalCorrecta = `${anio}-${mes}-${dia}`
+
       const { error } =
         await supabase
           .from('reservas')
           .insert([
             {
               cancha_id: canchaId,
-              fecha: fechaCasual,
+              fecha: fechaLocalCorrecta,
               hora_inicio: horaCasual,
               hora_fin: horaFin,
               cliente_nombre:
@@ -3547,4 +3550,5 @@ export default function AdminPage() {
       </div>
     </main>
   )
-             }
+}
+
