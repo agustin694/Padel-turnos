@@ -145,9 +145,6 @@ export default function AdminPage() {
   const [canchas, setCanchas] = useState([])
   const [reservas, setReservas] = useState([])
   const [turnosFijos, setTurnosFijos] = useState([])
-  
-  // Lista detallada de clientes únicos con nombre y teléfono
-  const [clientesAgenda, setClientesAgenda] = useState([])
 
   const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -292,26 +289,6 @@ export default function AdminPage() {
       setReservas(dataReservas || [])
       setTurnosFijos(dataFijos || [])
 
-      // Construir listado único de clientes limpios (sin [LIBERADO]) combinando reservas y fijos
-      const mapaClientes = new Map()
-
-      ;[...(dataReservas || []), ...(dataFijos || [])].forEach(item => {
-        const nombre = (item.cliente_nombre || '').trim()
-        const telefono = (item.cliente_telefono || '').trim()
-
-        if (nombre && !nombre.startsWith('[LIBERADO]')) {
-          if (!mapaClientes.has(nombre) || (telefono && !mapaClientes.get(nombre))) {
-            mapaClientes.set(nombre, telefono)
-          }
-        }
-      })
-
-      const listaFormateada = Array.from(mapaClientes.entries())
-        .map(([nombre, telefono]) => ({ nombre, telefono }))
-        .sort((a, b) => a.nombre.localeCompare(b.nombre))
-
-      setClientesAgenda(listaFormateada)
-
       if (
         !canchaId &&
         dataCanchas &&
@@ -348,29 +325,6 @@ export default function AdminPage() {
       )
     } finally {
       setCargando(false)
-    }
-  }
-
-  async function eliminarClienteAgenda(nombreCliente) {
-    const confirmar = confirm(
-      `¿Querés eliminar a "${nombreCliente}" de tu agenda de clientes guardados?\n\n(Esto limpiará su nombre de los registros históricos para que no aparezca más).`
-    )
-
-    if (!confirmar) return
-
-    setGuardando(true)
-    try {
-      setClientesAgenda(prev => prev.filter(c => c.nombre !== nombreCliente))
-      if (clienteNombre === nombreCliente) {
-        setClienteNombre('')
-        setClienteTelefono('')
-      }
-      alert('✅ Cliente eliminado de la lista guardada.')
-    } catch (err) {
-      console.error(err)
-      alert('No se pudo eliminar el cliente.')
-    } finally {
-      setGuardando(false)
     }
   }
 
@@ -2189,9 +2143,6 @@ export default function AdminPage() {
 
         </section>
 
-        {/* ========================================================= */}
-        {/* SECCIÓN CREAR TURNO + LISTA DE CLIENTES GUARDADOS Y ELIMINABLES */}
-        {/* ========================================================= */}
         <section className="tarjeta">
 
           <h2>
@@ -2305,110 +2256,6 @@ export default function AdminPage() {
               </div>
 
             </div>
-
-            {/* Selector de clientes guardados con su número de WhatsApp y opción de eliminar */}
-            {clientesAgenda.length > 0 && (
-              <div
-                style={{
-                  background: '#07110d',
-                  border: '1px solid #254536',
-                  borderRadius: '10px',
-                  padding: '10px',
-                  marginBottom: '14px'
-                }}
-              >
-                <label
-                  style={{
-                    color: '#d7ff45',
-                    marginBottom: '8px',
-                    display: 'block'
-                  }}
-                >
-                  📋 Clientes guardados (Hacé clic para rellenar o eliminar):
-                </label>
-
-                <div
-                  style={{
-                    maxHeight: '130px',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px'
-                  }}
-                >
-                  {clientesAgenda.map((cli, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: '#12241c',
-                        padding: '6px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid #1e3a2f'
-                      }}
-                    >
-                      <div
-                        onClick={() => {
-                          setClienteNombre(cli.nombre)
-                          if (cli.telefono) setClienteTelefono(cli.telefono)
-                        }}
-                        style={{
-                          cursor: 'pointer',
-                          flex: 1,
-                          fontSize: '12px'
-                        }}
-                      >
-                        <strong style={{ color: '#fff' }}>{cli.nombre}</strong>
-                        <span style={{ color: '#83968d', marginLeft: '8px' }}>
-                          {cli.telefono ? `📞 ${cli.telefono}` : '(Sin teléfono)'}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setClienteNombre(cli.nombre)
-                            if (cli.telefono) setClienteTelefono(cli.telefono)
-                          }}
-                          style={{
-                            background: '#d7ff45',
-                            color: '#142009',
-                            border: '0',
-                            borderRadius: '6px',
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Usar
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => eliminarClienteAgenda(cli.nombre)}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid #ef4444',
-                            color: '#ff7777',
-                            borderRadius: '6px',
-                            padding: '4px 6px',
-                            fontSize: '11px',
-                            cursor: 'pointer'
-                          }}
-                          title="Eliminar de la lista"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {tipoTurno === 'casual' ? (
               <>
