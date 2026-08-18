@@ -152,6 +152,12 @@ export default function AdminPage() {
   const [fechaAgenda, setFechaAgenda] =
     useState(hoyLocal())
 
+  // Estado para saber cuál botón de la navegación semanal está seleccionado
+  const [diaNavSeleccionado, setDiaNavSeleccionado] = useState(() => {
+    const [y, m, d] = hoyLocal().split('-').map(Number)
+    return new Date(y, m - 1, d, 12, 0, 0).getDay()
+  })
+
   const [buscarReservasAbierto, setBuscarReservasAbierto] = useState(false)
   const [fechaConsultaFutura, setFechaConsultaFutura] = useState(sumarDias(hoyLocal(), 7))
   const [reservasFuturasConsulta, setReservasFuturasConsulta] = useState([])
@@ -360,6 +366,8 @@ export default function AdminPage() {
   }
 
   function cambiarDiaNavegacion(numeroDia) {
+    setDiaNavSeleccionado(numeroDia)
+
     const [y, m, d] = fechaAgenda.split('-').map(Number)
     const actual = new Date(y, m - 1, d, 12, 0, 0)
 
@@ -1910,30 +1918,32 @@ export default function AdminPage() {
               gap: '4px'
             }}
           >
-            {DIAS_SHORT.map(d => (
-              <button
-                key={d.numero}
-                type="button"
-                onClick={() =>
-                  cambiarDiaNavegacion(
-                    d.numero
-                  )
-                }
-                style={{
-                  background: '#183126',
-                  color: 'white',
-                  border:
-                    '1px solid #355546',
-                  padding: '8px 2px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: 'bold'
-                }}
-              >
-                {d.nombre}
-              </button>
-            ))}
+            {DIAS_SHORT.map(d => {
+              const esActivo = diaNavSeleccionado === d.numero
+              return (
+                <button
+                  key={d.numero}
+                  type="button"
+                  onClick={() =>
+                    cambiarDiaNavegacion(
+                      d.numero
+                    )
+                  }
+                  style={{
+                    background: esActivo ? '#d7ff45' : '#183126',
+                    color: esActivo ? '#142009' : 'white',
+                    border: '1px solid #355546',
+                    padding: '8px 2px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {d.nombre}
+                </button>
+              )
+            })}
           </div>
         </section>
 
@@ -2000,11 +2010,14 @@ export default function AdminPage() {
               <input
                 type="date"
                 value={fechaAgenda}
-                onChange={e =>
-                  setFechaAgenda(
-                    e.target.value
-                  )
-                }
+                onChange={e => {
+                  const nuevaFecha = e.target.value
+                  setFechaAgenda(nuevaFecha)
+                  if (nuevaFecha) {
+                    const [y, m, d] = nuevaFecha.split('-').map(Number)
+                    setDiaNavSeleccionado(new Date(y, m - 1, d, 12, 0, 0).getDay())
+                  }
+                }}
                 style={{
                   flex: 1,
                   padding: '8px',
