@@ -50,8 +50,8 @@ function hoyLocal() {
 function formatearFechaConDia(fechaStr) {
   if (!fechaStr) return ''
   const [anio, mes, dia] = fechaStr.split('-')
-  const d = new Date(anio, Number(mes) - 1, Number(dia), 12, 0, 0)
-  const diaSemana = DIAS[d.getDay()].nombre
+  const d = new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia), 12, 0, 0))
+  const diaSemana = DIAS[d.getUTCDay()].nombre
   return `${diaSemana} ${mes}-${dia}`
 }
 
