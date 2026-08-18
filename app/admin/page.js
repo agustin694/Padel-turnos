@@ -589,7 +589,9 @@ export default function AdminPage() {
 
       const finReserva =
         r.hora_fin
-          ? minutosDesdeHora(r.hora_fin)
+          ? minutosDesdeHora(
+              r.hora_fin
+            )
           : inicioReserva + 90
 
       return (
