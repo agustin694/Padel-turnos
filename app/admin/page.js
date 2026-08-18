@@ -300,7 +300,6 @@ export default function AdminPage() {
         const telefono = (item.cliente_telefono || '').trim()
 
         if (nombre && !nombre.startsWith('[LIBERADO]')) {
-          // Si ya existe pero este registro tiene teléfono y el anterior no, lo actualizamos
           if (!mapaClientes.has(nombre) || (telefono && !mapaClientes.get(nombre))) {
             mapaClientes.set(nombre, telefono)
           }
@@ -361,8 +360,6 @@ export default function AdminPage() {
 
     setGuardando(true)
     try {
-      // Opcional: limpiar el nombre en reservas pasadas/fijos o simplemente borrarlo del estado visual local actualizando los registros en Supabase si es necesario.
-      // Aquí actualizamos el estado local quitándolo de la lista de sugerencias y limpiando los inputs si coinciden
       setClientesAgenda(prev => prev.filter(c => c.nombre !== nombreCliente))
       if (clienteNombre === nombreCliente) {
         setClienteNombre('')
@@ -2307,7 +2304,7 @@ export default function AdminPage() {
 
             </div>
 
-            {/* NUEVO: Selector de clientes guardados con su número de WhatsApp y opción de eliminar */}
+            {/* Selector de clientes guardados con su número de WhatsApp y opción de eliminar */}
             {clientesAgenda.length > 0 && (
               <div
                 style={{
