@@ -49,10 +49,12 @@ function hoyLocal() {
 
 function formatearFechaConDia(fechaStr) {
   if (!fechaStr) return ''
-  const [anio, mes, dia] = fechaStr.split('-')
-  const d = new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia), 12, 0, 0))
+  const [anio, mes, dia] = fechaStr.split('-').map(Number)
+  const d = new Date(Date.UTC(anio, mes - 1, dia))
   const diaSemana = DIAS[d.getUTCDay()].nombre
-  return `${diaSemana} ${mes}-${dia}`
+  const mesStr = String(mes).padStart(2, '0')
+  const diaStr = String(dia).padStart(2, '0')
+  return `${diaSemana} ${mesStr}-${diaStr}`
 }
 
 function formatearHora(horaStr) {
